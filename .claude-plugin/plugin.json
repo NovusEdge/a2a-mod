@@ -15,7 +15,7 @@
     "tokens": {
       "type": "string",
       "title": "Worker tokens",
-      "description": "JSON object: worker alias -> token",
+      "description": "alias=token pairs separated by spaces, e.g. \"w1=abc w2=def\"",
       "sensitive": true
     }
   }

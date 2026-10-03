@@ -2,7 +2,7 @@ import type { Outcome, ProtocolVersion, Skill, TaskOutcome, TaskState, Worker } 
 
 export type Op = 'send' | 'get' | 'cancel'
 export type OpParams = { text: string; contextId?: string; taskId?: string } | { id: string }
-export type CardInfo = Pick<Worker, 'name' | 'description' | 'cardUrl' | 'endpoint' | 'version' | 'skills'>
+export type CardInfo = Pick<Worker, 'name' | 'description' | 'cardUrl' | 'endpoint' | 'version' | 'skills' | 'needsAuth'>
 
 const METHODS: Record<ProtocolVersion, Record<Op, string>> = {
   '1.0': { send: 'SendMessage', get: 'GetTask', cancel: 'CancelTask' },
@@ -23,7 +23,10 @@ export function parseCard(raw: unknown, cardUrl: string): CardInfo {
   const skills: Skill[] = (Array.isArray(card.skills) ? card.skills : []).map((s: Json) => ({
     id: String(s.id ?? ''), name: String(s.name ?? s.id ?? ''), description: String(s.description ?? ''),
   }))
-  const base = { name: card.name, description: String(card.description ?? ''), cardUrl, skills }
+  const some = (v: unknown) => (Array.isArray(v) ? v.length > 0 : !!v && typeof v === 'object' && Object.keys(v).length > 0)
+  // 1.0 says securityRequirements, 0.3 says security; either one naming a scheme means a token.
+  const needsAuth = some(card.securityRequirements) || some(card.security)
+  const base = { name: card.name, description: String(card.description ?? ''), cardUrl, skills, needsAuth }
   const ifaces: Json[] = Array.isArray(card.supportedInterfaces) ? card.supportedInterfaces : []
   const jsonrpc = (major: string) => ifaces.find(i => i.protocolBinding === 'JSONRPC' && String(i.protocolVersion).startsWith(major))
   const v1 = jsonrpc('1.')

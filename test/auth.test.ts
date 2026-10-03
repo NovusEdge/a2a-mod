@@ -13,14 +13,21 @@ test('setting: a worker finds its token in the tokens setting by alias', WITH_TO
   expect(bearer(net)).toBe('Bearer s3cret')
 })
 
-test('setting: a worker missing from the map sends no token', { options: { tokens: JSON.stringify({ other: 'x' }) } }, async ($, on) => {
+test('setting: a worker missing from the setting sends no token', { options: { tokens: 'other=x' } }, async ($, on) => {
   mock.store(on, STORE)
   const net = fakeNet(on)
   await taskCall($)
   expect(bearer(net)).toBeUndefined()
 })
 
-test('setting: malformed tokens JSON gives no token and one warning in /a2a list', { options: { tokens: '{"fake": "s3cret' } }, async ($, on) => {
+test('setting: pairs split at the first =, so base64 padding survives', { options: { tokens: 'other=x  fake=YWJj==\n' } }, async ($, on) => {
+  mock.store(on, STORE)
+  const net = fakeNet(on)
+  await taskCall($)
+  expect(bearer(net)).toBe('Bearer YWJj==')
+})
+
+test('setting: a malformed tokens setting gives no token and one warning in /a2a list', { options: { tokens: 'fake s3cret' } }, async ($, on) => {
   mock.store(on, STORE)
   const net = fakeNet(on)
   await taskCall($)
@@ -30,12 +37,23 @@ test('setting: malformed tokens JSON gives no token and one warning in /a2a list
   expect(out).not.toContain('s3cret')
 })
 
-test('setting: /a2a add with an alias missing from the map prints the configure command', async ($, on) => {
+const securedCard = { ...f.card_v1, securitySchemes: { bearer: { httpAuthSecurityScheme: { scheme: 'Bearer' } } }, securityRequirements: [{ schemes: { bearer: { list: [] } } }] }
+
+test('setting: a worker whose card asks for auth gets a configure command with no backslashes', async ($, on) => {
+  mock.store(on)
+  fakeNet(on, { card: securedCard })
+  const out = String((await runA2a($, 'add http://worker.test w1 --token-setting')).text)
+  expect(out).toContain(`claude plugin configure a2a-mod@a2a-mod --values-stdin <<< '{"tokens":"w1=<token>"}'`)
+  expect(out).not.toContain('\\')
+  expect(out).toContain('replaces')
+})
+
+test('setting: a worker whose card asks for no auth gets no token hint', async ($, on) => {
   mock.store(on)
   fakeNet(on)
-  const out = String((await runA2a($, 'add http://worker.test w1 --token-setting')).text)
-  expect(out).toContain(`claude plugin configure a2a-mod@a2a-mod --values-stdin <<< '{"tokens":"{\\"w1\\":\\"<token>\\"}"}'`)
-  expect(out).toContain('replaces')
+  const out = String((await runA2a($, 'add http://worker.test w1')).text)
+  expect(out).not.toContain('configure')
+  expect(out).not.toContain('token')
 })
 
 test('cmd: runs the argv without a shell, keeps double-quoted words, and caches the token', async ($, on) => {
@@ -115,7 +133,7 @@ test('/a2a add takes at most one token source', async ($, on) => {
 })
 
 for (const source of ['setting', 'cmd', 'file'] as const) {
-  test(`no ${source} token appears in any text`, { options: { tokens: JSON.stringify({ fake: 'tok-setting' }) } }, async ($, on) => {
+  test(`no ${source} token appears in any text`, { options: { tokens: 'fake=tok-setting' } }, async ($, on) => {
     const token = `tok-${source}`
     mock.store(on)
     on('process.run', async () => ran('tok-cmd'))

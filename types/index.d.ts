@@ -19,6 +19,8 @@ export type Worker = {
   endpoint: string
   version: ProtocolVersion
   skills: Skill[]
+  /** The card names a security requirement. */
+  needsAuth: boolean
   auth: TokenSource
   trustedOrigin?: string
   addedAt: number

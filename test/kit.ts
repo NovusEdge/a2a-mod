@@ -9,14 +9,14 @@ type Answer = unknown | ((body: any) => unknown)
 const DEFAULTS: Record<Route, unknown> = { card: f.card_v1, send: f.v1_send_echo, get: f.v1_get_completed, cancel: f.v1_cancel }
 
 /** The plugin's userConfig with the tokens setting holding the fake worker's token. */
-export const WITH_TOKEN = { options: { tokens: JSON.stringify({ fake: 's3cret' }) } }
+export const WITH_TOKEN = { options: { tokens: 'fake=s3cret' } }
 
 export const STORE = {
   workers: {
     fake: {
       alias: 'fake', name: 'Fake Worker', description: 'test double', cardUrl: 'http://worker.test/.well-known/agent-card.json',
       endpoint: 'http://worker.test/a2a/jsonrpc', version: '1.0', skills: [{ id: 'echo', name: 'Echo', description: 'Replies' }],
-      auth: { kind: 'setting' }, addedAt: 0,
+      needsAuth: true, auth: { kind: 'setting' }, addedAt: 0,
     },
   },
 }

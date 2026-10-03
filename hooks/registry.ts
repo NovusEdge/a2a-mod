@@ -2,7 +2,7 @@ import type { ProcessRunResult, StateRead, Timer } from 'claude-code'
 import type { Target, TrackedTask, Worker } from '../types/index.d.ts'
 import { A2AError, type Fetcher } from './client.ts'
 
-/** The `tokens` plugin setting, parsed once per load. `invalid` when it was not a JSON object. */
+/** The `tokens` plugin setting, parsed once per load. `invalid` when a word was not `alias=token`. */
 export type SettingTokens = { map: Readonly<Record<string, string>>; invalid: boolean }
 
 // The engine as the other modules see it. The loader refuses $ passed across an import,
@@ -24,17 +24,18 @@ export type Host = {
   wake(text: string): Promise<void>
 }
 
+// `alias=token` pairs separated by whitespace. Not JSON: a JSON map inside the setting's own
+// JSON needs escaped quotes, and the transcript drops backslashes from the printed hint.
+// Split at the first `=` so base64 padding in a token survives.
 export function parseTokens(raw: unknown): SettingTokens {
-  if (raw === undefined || raw === '') return { map: {}, invalid: false }
-  try {
-    const value: unknown = JSON.parse(String(raw))
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return { map: Object.fromEntries(Object.entries(value).filter((kv): kv is [string, string] => typeof kv[1] === 'string' && kv[1] !== '')), invalid: false }
-    }
-  } catch {
-    // The parse error can quote the setting, which holds tokens; it is never shown.
+  const words = String(raw ?? '').split(/\s+/).filter(Boolean)
+  const map: Record<string, string> = {}
+  for (const word of words) {
+    const at = word.indexOf('=')
+    if (at <= 0 || at === word.length - 1) return { map: {}, invalid: true }
+    map[word.slice(0, at)] = word.slice(at + 1)
   }
-  return { map: {}, invalid: true }
+  return { map, invalid: false }
 }
 
 /** Splits on whitespace; a double-quoted run is one word, with `\"` inside it a quote. */

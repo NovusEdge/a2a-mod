@@ -20,8 +20,8 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(
 export function configureHint(alias: string): string {
   return [
     'Set it from a shell, then restart Claude Code:',
-    `  claude plugin configure a2a-mod@a2a-mod --values-stdin <<< '{"tokens":"{\\"${alias}\\":\\"<token>\\"}"}'`,
-    'This replaces the whole tokens setting, so put every worker\'s token in that one object.',
+    `  claude plugin configure a2a-mod@a2a-mod --values-stdin <<< '{"tokens":"${alias}=<token>"}'`,
+    'This replaces the whole tokens setting, so list every worker in it: "w1=<token> w2=<token>".',
     'Use the plugin id `claude plugin list` shows if yours is not a2a-mod@a2a-mod.',
   ].join('\n')
 }
@@ -32,9 +32,10 @@ function source(auth: TokenSource): string {
   return 'token from the tokens setting'
 }
 
-function describe(w: Worker): string {
+function describe(w: Worker, tokens: Readonly<Record<string, string>>): string {
   const skills = w.skills.map(s => `${s.id}: ${s.description || s.name}`).join('; ') || 'no skills listed'
-  return `${w.alias}  ${w.name} (A2A ${w.version}, ${source(w.auth)})\n    ${w.description}\n    skills: ${skills}`
+  const hasToken = w.needsAuth || w.auth.kind !== 'setting' || w.alias in tokens
+  return `${w.alias}  ${w.name} (A2A ${w.version}${hasToken ? `, ${source(w.auth)}` : ''})\n    ${w.description}\n    skills: ${skills}`
 }
 
 async function add(host: Host, words: string[]): Promise<string> {
@@ -68,13 +69,13 @@ async function add(host: Host, words: string[]): Promise<string> {
   await saveWorker(host, w)
   const notes: string[] = []
   const hasSettingToken = w.alias in host.settingTokens.map
-  if (auth.kind === 'setting' && !hasSettingToken) {
-    notes.push(`The tokens setting has no token for ${w.alias}, so calls go without one. If it needs a token:\n${configureHint(w.alias)}`)
+  if (auth.kind === 'setting' && !hasSettingToken && w.needsAuth) {
+    notes.push(`${w.alias}'s card asks for authentication, and the tokens setting has no token for it yet.\n${configureHint(w.alias)}`)
   }
   if ((auth.kind !== 'setting' || hasSettingToken) && endpointOrigin !== new URL(cardUrl).origin && !trust) {
     notes.push(`Its endpoint (${endpointOrigin}) is on another origin from its card, so the token is not sent until you re-add it with --trust-endpoint.`)
   }
-  return [`Added worker:\n${describe(w)}`, ...notes].join('\n\n')
+  return [`Added worker:\n${describe(w, host.settingTokens.map)}`, ...notes].join('\n\n')
 }
 
 export async function runCommand(host: Host, args: string): Promise<string> {
@@ -84,9 +85,9 @@ export async function runCommand(host: Host, args: string): Promise<string> {
       case 'add': return await add(host, words)
       case 'list': {
         const all = Object.values(await loadWorkers(host))
-        const workers = all.length ? all.map(describe).join('\n\n') : 'No workers registered. Add one with /a2a add <url>.'
+        const workers = all.length ? all.map(w => describe(w, host.settingTokens.map)).join('\n\n') : 'No workers registered. Add one with /a2a add <url>.'
         const warning = host.settingTokens.invalid
-          ? '\n\nWarning: the tokens setting is not valid JSON (an object of alias to token), so no worker gets a token from it.'
+          ? '\n\nWarning: the tokens setting is not valid (it should be alias=token pairs separated by spaces), so no worker gets a token from it.'
           : ''
         const now = Date.now()
         const tasks = (await runningTasks(host)).map(t => `  ${t.worker} ${t.taskId} ${t.state}, ${Math.round((now - t.startedAt) / 1000)}s`)

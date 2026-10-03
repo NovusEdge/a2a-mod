@@ -5,7 +5,7 @@ import type { Target } from '../types/index.d.ts'
 
 const target = (over: Partial<Target> = {}): Target => ({
   alias: 'fake', name: 'Fake Worker', description: '', cardUrl: 'http://worker.test/.well-known/agent-card.json',
-  endpoint: 'http://worker.test/a2a/jsonrpc', version: '1.0', skills: [], addedAt: 0, auth: { kind: 'setting' }, ...over,
+  endpoint: 'http://worker.test/a2a/jsonrpc', version: '1.0', skills: [], needsAuth: false, addedAt: 0, auth: { kind: 'setting' }, ...over,
 })
 
 function net(answer: (url: string, body: any) => { status?: number; json: unknown }) {
