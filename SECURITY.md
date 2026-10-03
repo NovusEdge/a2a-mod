@@ -12,9 +12,11 @@ You get an acknowledgement within 7 days and a fix or a decision within 90 days.
 - The mod sending a request to a host the user did not register, including through a redirect or a URL taken from an Agent Card.
 - A worker token sent to a host other than the one it was registered for.
 - A worker response that makes the mod run a tool, a command, or a process without the model asking for it.
+- Any way to give the mod a worker token other than `--token-env`.
 
 ## What does not count
 
 - Prompt injection through a worker's reply. A worker's output reaches the model as a tool result, the same as a web page fetched by WebFetch. Register only workers you trust.
 - A registered worker misbehaving. The worker runs outside this project's control.
 - Anything a mod can do by design: mods run with the user's permissions and are not sandboxed.
+- A token the user typed into a prompt themselves.
