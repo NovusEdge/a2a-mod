@@ -63,6 +63,20 @@ test('401 says the token is wrong without echoing it', async () => {
   expect(String(err.message)).not.toContain('s3cret')
 })
 
+test('a worker that cannot be reached gives an A2AError, scrubbed', async () => {
+  const down: Fetcher = async () => { throw new Error('connect ECONNREFUSED; header Bearer s3cret') }
+  const err = await send(down, target({ token: 's3cret' }), { text: 'hi' }).catch(e => e)
+  expect(err).toBeInstanceOf(A2AError)
+  expect(String(err.message)).toContain('could not reach')
+  expect(String(err.message)).not.toContain('s3cret')
+})
+
+test('a reply with no result gives an A2AError', async () => {
+  const { fetcher } = net(() => ({ json: { jsonrpc: '2.0', id: 1, result: null } }))
+  const err = await getTask(fetcher, target(), 'x').catch(e => e)
+  expect(err).toBeInstanceOf(A2AError)
+})
+
 test('JSON-RPC errors and worker text are scrubbed', async () => {
   const { fetcher } = net(() => ({ json: { jsonrpc: '2.0', id: 1, error: { code: -32001, message: 'no task; auth was s3cret' } } }))
   const err = await getTask(fetcher, target({ token: 's3cret' }), 'x').catch(e => e)

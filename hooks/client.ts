@@ -29,14 +29,20 @@ async function rpc(fetch: Fetcher, t: Target, op: Op, params: OpParams): Promise
   const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' }
   if (t.version === '1.0') headers['A2A-Version'] = '1.0'
   if (t.token) headers.Authorization = `Bearer ${t.token}`
-  const res = await fetch(t.endpoint, { method: 'POST', headers, body: rpcBody(t.version, op, params, nextId++) })
+  let res: Awaited<ReturnType<Fetcher>>
+  try {
+    res = await fetch(t.endpoint, { method: 'POST', headers, body: rpcBody(t.version, op, params, nextId++) })
+  } catch (err) {
+    throw new A2AError(scrub(`could not reach worker ${t.alias} at ${origin}: ${err instanceof Error ? err.message : String(err)}`, t.token))
+  }
   if (res.status === 401 || res.status === 403) {
     const fix = t.tokenEnv ? `check the ${t.tokenEnv} environment variable` : `re-add it with --token-env <VAR>`
     throw new A2AError(`worker ${t.alias} refused the request (HTTP ${res.status}); its token is ${t.token ? 'wrong or expired' : 'missing'}. The user should ${fix}.`)
   }
   if (!res.ok) throw new A2AError(`worker ${t.alias} answered HTTP ${res.status}`)
   const body = parseJson(res.text, `worker ${t.alias}`)
-  if (body.error) throw new A2AError(scrub(`worker ${t.alias} returned error ${body.error.code}: ${body.error.message}`, t.token))
+  if (body?.error) throw new A2AError(scrub(`worker ${t.alias} returned error ${body.error.code}: ${body.error.message}`, t.token))
+  if (typeof body?.result !== 'object' || body.result === null) throw new A2AError(`worker ${t.alias} returned no result`)
   return body.result
 }
 

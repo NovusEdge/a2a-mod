@@ -37,6 +37,30 @@ test('send to an unknown worker lists the known ones', async ($, on) => {
   expect(String(ran.result)).toContain('fake')
 })
 
+test('send cuts a long result and the task tool returns it whole', async ($, on) => {
+  mock.store(on, STORE)
+  mock.env(on, TOKEN_ENV)
+  const long = JSON.parse(JSON.stringify(f.v1_get_completed).replace('echo: hi', `echo: ${'x'.repeat(20000)}`))
+  fakeNet(on, { send: long.result && { jsonrpc: '2.0', id: 1, result: { task: long.result } }, get: long })
+  const sent = String((await $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message: 'hi' })).result)
+  expect(sent).toContain('task tool')
+  expect(sent.length).toBeLessThan(8500)
+  const full = String((await $.tool.call({ tool: 'mcp__a2a-mod__task', worker: 'fake', taskId: 't1' })).result)
+  expect(full).toContain('x'.repeat(20000))
+  expect(full).not.toContain('truncated')
+})
+
+test('a worker that never answers ends the send with a sentence, inside the hook budget', async ($, on) => {
+  mock.store(on, STORE)
+  mock.env(on, TOKEN_ENV)
+  const clock = mock.clock(on)
+  on('http.fetch', () => new Promise(() => {}))
+  const p = $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message: 'hi' })
+  await clock.advance(10000)
+  const out = String((await p).result)
+  expect(out).toContain('did not answer')
+})
+
 test('task cancel calls the cancel method', async ($, on) => {
   mock.store(on, STORE)
   mock.env(on, TOKEN_ENV)
