@@ -1,0 +1,42 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tag matches plugin.json
+        run: test "v$(jq -r .version .claude-plugin/plugin.json)" = "$GITHUB_REF_NAME"
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm add -g @anthropic-ai/claude-code@2.1.287
+      - run: pnpm check
+      - run: pnpm test
+      - name: Release notes from CHANGELOG
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md
+      - name: Plugin archive
+        run: git archive --format=tar.gz --prefix="a2a-dispatch-${GITHUB_REF_NAME}/" -o "a2a-dispatch-${GITHUB_REF_NAME}.tar.gz" HEAD
+      - uses: softprops/action-gh-release@v3
+        with:
+          # A hyphen in the tag means a pre-release (v0.2.0-rc.1). Marking it
+          # keeps the "latest release" link on the last stable tag.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body_path: notes.md
+          files: a2a-dispatch-*.tar.gz

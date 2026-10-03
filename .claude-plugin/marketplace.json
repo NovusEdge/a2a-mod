@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "a2a-dispatch",
+  "description": "A2A protocol client for Claude Code.",
+  "owner": {
+    "name": "Aliasgar Khimani",
+    "url": "https://github.com/NovusEdge"
+  },
+  "plugins": [
+    {
+      "name": "a2a-dispatch",
+      "description": "A2A protocol client for Claude Code: Claude hands tasks to non-Claude worker agents over Agent2Agent and picks up their results.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}

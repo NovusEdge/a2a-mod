@@ -1,0 +1,14 @@
+{
+  "name": "a2a-dispatch",
+  "version": "0.1.0",
+  "description": "A2A protocol client for Claude Code: Claude hands tasks to non-Claude worker agents over Agent2Agent and picks up their results.",
+  "author": {
+    "name": "Aliasgar Khimani",
+    "url": "https://github.com/NovusEdge"
+  },
+  "homepage": "https://github.com/NovusEdge/a2a-dispatch",
+  "repository": "https://github.com/NovusEdge/a2a-dispatch",
+  "license": "MIT",
+  "keywords": ["a2a", "agent2agent", "multi-agent", "orchestration", "agents", "interop", "mod"],
+  "types": "./types/index.d.ts"
+}

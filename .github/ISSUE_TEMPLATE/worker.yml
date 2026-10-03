@@ -1,0 +1,26 @@
+name: Worker compatibility
+description: A specific A2A agent or framework does not work with a2a-dispatch
+labels: [compat]
+body:
+  - type: input
+    id: framework
+    attributes:
+      label: Framework and version
+      description: For example `google-adk 1.9`, `ag2 0.10`, `@a2a-js/sdk 1.3.0`
+    validations:
+      required: true
+  - type: textarea
+    id: card
+    attributes:
+      label: Agent Card
+      description: The worker's Agent Card JSON, with any secrets removed
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What failed
+      description: Which tool call failed and the error Claude saw
+    validations:
+      required: true

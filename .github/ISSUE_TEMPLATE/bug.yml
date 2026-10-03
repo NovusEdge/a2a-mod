@@ -1,0 +1,31 @@
+name: Bug
+description: a2a-dispatch did something wrong
+labels: [bug]
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `claude --version`, and the a2a-dispatch version from `/plugin`
+    validations:
+      required: true
+  - type: input
+    id: worker
+    attributes:
+      label: Worker
+      description: What the worker is built on (ADK, AG2, LangGraph, @a2a-js/sdk, ...) and the A2A version its Agent Card declares
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you or Claude asked for, what you expected, what you saw
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Debug log
+      description: Lines starting with `a2a-dispatch:` from a session run with `claude --debug`. Remove any token first.
+      render: text
