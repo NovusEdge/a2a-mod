@@ -2,7 +2,7 @@ import type { Timer } from 'claude-code'
 import type { TrackedTask } from '../types/index.d.ts'
 import { getTask } from './client.ts'
 import { describeOutcome } from './format.ts'
-import { loadWorkers, targetOf, type Host } from './registry.ts'
+import { loadWorkers, noteFailure, targetOf, type Host } from './registry.ts'
 import { isLive } from './wire.ts'
 
 export const POLL_MS = 5000
@@ -51,7 +51,8 @@ async function pollOne(host: Host, t: TrackedTask, workers: Awaited<ReturnType<t
   try {
     const out = await timeoutOr(host, getTask(host.fetch, await targetOf(host, w), t.taskId))
     return isLive(out.state) ? { taskId: t.taskId, live: { ...t, state: out.state, failures: 0 } } : { taskId: t.taskId, note: describeOutcome(w.alias, out) }
-  } catch {
+  } catch (err) {
+    noteFailure(w, err)
     return { taskId: t.taskId, failed: true }
   }
 }

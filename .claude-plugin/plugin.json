@@ -10,5 +10,13 @@
   "repository": "https://github.com/NovusEdge/a2a-mod",
   "license": "MIT",
   "keywords": ["a2a", "agent2agent", "multi-agent", "orchestration", "agents", "interop", "mod"],
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "tokens": {
+      "type": "string",
+      "title": "Worker tokens",
+      "description": "JSON object: worker alias -> token",
+      "sensitive": true
+    }
+  }
 }

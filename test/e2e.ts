@@ -21,7 +21,7 @@ try {
   const { cardUrl, card } = await discover(fetcher, w.url)
   for (const version of ['1.0', '0.3'] as const) {
     // The compat server accepts both versions on one endpoint.
-    const t: Target = { ...card, cardUrl, version, alias: 'fake', addedAt: 0 }
+    const t: Target = { ...card, cardUrl, version, alias: 'fake', addedAt: 0, auth: { kind: 'setting' } }
 
     assert.match((await settle(t, await send(fetcher, t, { text: 'hi' }))).text, /echo: hi/)
 

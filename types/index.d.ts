@@ -2,6 +2,15 @@ export type ProtocolVersion = '1.0' | '0.3'
 
 export type Skill = { id: string; name: string; description: string }
 
+/**
+ * Where a worker's token comes from. The value itself is never stored here:
+ * `setting` looks the alias up in the plugin's sensitive `tokens` setting.
+ */
+export type TokenSource =
+  | { kind: 'setting' }
+  | { kind: 'cmd'; cmd: string }
+  | { kind: 'file'; path: string }
+
 export type Worker = {
   alias: string
   name: string
@@ -10,7 +19,7 @@ export type Worker = {
   endpoint: string
   version: ProtocolVersion
   skills: Skill[]
-  tokenEnv?: string
+  auth: TokenSource
   trustedOrigin?: string
   addedAt: number
 }

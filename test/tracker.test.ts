@@ -1,6 +1,6 @@
 import { test, expect, mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { StateRead } from 'claude-code'
-import { fakeNet, runA2a, STORE, TOKEN_ENV, type On } from './kit.ts'
+import { fakeNet, runA2a, STORE, WITH_TOKEN, type On } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 import type { Fetcher } from '../hooks/client.ts'
 import type { Host } from '../hooks/registry.ts'
@@ -25,9 +25,8 @@ async function sendSlow($: Engine, clock: MockClock, message = 'slow 60 build') 
   return String((await p).result)
 }
 
-test('a slow task is tracked, then wakes Claude once with the result', async ($, on) => {
+test('a slow task is tracked, then wakes Claude once with the result', WITH_TOKEN, async ($, on) => {
   mock.store(on, STORE)
-  mock.env(on, TOKEN_ENV)
   const clock = mock.clock(on)
   const woke = prompts(on)
   let done = false
@@ -43,9 +42,8 @@ test('a slow task is tracked, then wakes Claude once with the result', async ($,
   expect(woke.length).toBe(1)
 })
 
-test('two tasks finishing in one tick make one prompt, and both were kept', async ($, on) => {
+test('two tasks finishing in one tick make one prompt, and both were kept', WITH_TOKEN, async ($, on) => {
   mock.store(on, STORE)
-  mock.env(on, TOKEN_ENV)
   const clock = mock.clock(on)
   const woke = prompts(on)
   let n = 0
@@ -62,9 +60,8 @@ test('two tasks finishing in one tick make one prompt, and both were kept', asyn
   expect((woke[0]!.match(/task /g) ?? []).length).toBe(2)
 })
 
-test('a worker that stops answering is dropped after six failures', async ($, on) => {
+test('a worker that stops answering is dropped after six failures', WITH_TOKEN, async ($, on) => {
   mock.store(on, STORE)
-  mock.env(on, TOKEN_ENV)
   const clock = mock.clock(on)
   const woke = prompts(on)
   const net = fakeNet(on, { send: f.v1_send_slow, get: f.v1_get_working })
@@ -77,9 +74,8 @@ test('a worker that stops answering is dropped after six failures', async ($, on
   expect(woke[0]).toContain('lost contact')
 })
 
-test('status line shows running tasks and clears at zero', async ($, on) => {
+test('status line shows running tasks and clears at zero', WITH_TOKEN, async ($, on) => {
   mock.store(on, STORE)
-  mock.env(on, TOKEN_ENV)
   const clock = mock.clock(on)
   const statuses: (string | undefined)[] = []
   on('ui.status', async (_$, e) => { statuses.push(e.text); return { value: undefined } })
@@ -93,9 +89,8 @@ test('status line shows running tasks and clears at zero', async ($, on) => {
   expect(statuses.at(-1)).toBeUndefined()
 })
 
-test('/a2a list shows running tasks', async ($, on) => {
+test('/a2a list shows running tasks', WITH_TOKEN, async ($, on) => {
   mock.store(on, STORE)
-  mock.env(on, TOKEN_ENV)
   const clock = mock.clock(on)
   prompts(on)
   fakeNet(on, { send: f.v1_send_slow, get: f.v1_get_working })
@@ -105,9 +100,8 @@ test('/a2a list shows running tasks', async ($, on) => {
   expect(out).toContain(`fake ${f.v1_send_slow.result.task.id} working`)
 })
 
-test('session.start while a task is tracked keeps a single poller', async ($, on) => {
+test('session.start while a task is tracked keeps a single poller', WITH_TOKEN, async ($, on) => {
   mock.store(on, STORE)
-  mock.env(on, TOKEN_ENV)
   const clock = mock.clock(on)
   const woke = prompts(on)
   let done = false
@@ -131,7 +125,9 @@ function fakeHost(fetch: Fetcher, left: TrackedTask[] = []) {
     fetch,
     readWorkers: async () => STORE.workers,
     writeWorkers: async () => {},
-    env: async () => 's3cret',
+    settingTokens: { map: { fake: 's3cret' }, invalid: false },
+    run: async () => { throw new Error('no commands in this test') },
+    readFile: async () => { throw new Error('no files in this test') },
     readTasks: async () => tasks,
     writeTasks: async (value, ifVersion) => {
       if (ifVersion !== tasks.version) return false

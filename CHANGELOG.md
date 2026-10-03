@@ -13,5 +13,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/a2a add <url> [alias]`, `/a2a list` and `/a2a remove <alias>` to manage workers. `/a2a list` also shows running tasks and their age.
 - A2A protocol 1.0 and 0.3 over the JSON-RPC binding. The version comes from the Agent Card.
 - Background tracking: a task that does not finish within about 7 seconds is polled every 5 seconds, and Claude gets a message when it finishes. A worker that fails 6 polls in a row is dropped, and Claude is told. The status line shows `a2a: N running`.
-- `--token-env A2A_TOKEN_<1-9>` to send a worker a bearer token from an environment variable. The token is never stored or typed into Claude Code, and every text the mod emits has it replaced with `[token]`.
+- Bearer tokens for workers, from one of three sources per worker: the sensitive `tokens` plugin setting (a JSON object of alias to token, the default), `--token-cmd "<command>"` (run without a shell; stdout is the token), or `--token-file <path>`. Command and file tokens are cached for 5 minutes and fetched again after a 401 or 403. A token is never typed into `/a2a`, and every text the mod emits has it replaced with `[token]`.
 - The origin rule: a token is not sent to an endpoint on another origin than the worker's card unless the worker was added with `--trust-endpoint`.

@@ -3,35 +3,23 @@ import type { Worker } from '../types/index.d.ts'
 import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
 import { describeOutcome, FULL_MAX } from './format.ts'
-import { loadWorkers, targetOf, type Host, type TokenEnv } from './registry.ts'
+import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
 import { resume, track } from './tracker.ts'
 import { isLive } from './wire.ts'
 
 type Engine = EngineInterface
 
 const TASKS = { plugin: 'a2a-mod', key: 'tasks' } as const
+const TOKEN_CMD_TIMEOUT_MS = 10_000
 
-// Each name is spelled out because $.env.get refuses a computed one. Keep in step with TOKEN_ENVS.
-function readToken($: Engine, name: TokenEnv): Promise<string | undefined> {
-  switch (name) {
-    case 'A2A_TOKEN_1': return $.env.get('A2A_TOKEN_1')
-    case 'A2A_TOKEN_2': return $.env.get('A2A_TOKEN_2')
-    case 'A2A_TOKEN_3': return $.env.get('A2A_TOKEN_3')
-    case 'A2A_TOKEN_4': return $.env.get('A2A_TOKEN_4')
-    case 'A2A_TOKEN_5': return $.env.get('A2A_TOKEN_5')
-    case 'A2A_TOKEN_6': return $.env.get('A2A_TOKEN_6')
-    case 'A2A_TOKEN_7': return $.env.get('A2A_TOKEN_7')
-    case 'A2A_TOKEN_8': return $.env.get('A2A_TOKEN_8')
-    case 'A2A_TOKEN_9': return $.env.get('A2A_TOKEN_9')
-  }
-}
-
-function hostOf($: Engine): Host {
+function hostOf($: Engine, settingTokens: SettingTokens): Host {
   return {
     fetch: (url, init) => $.http.fetch(url, init),
     readWorkers: () => $.store.get('workers'),
     writeWorkers: all => $.store.set('workers', all),
-    env: name => readToken($, name),
+    settingTokens,
+    run: argv => $.process.run(argv, { timeoutMs: TOKEN_CMD_TIMEOUT_MS }),
+    readFile: path => $.fs.read(path),
     readTasks: () => $.state.get(TASKS),
     writeTasks: async (tasks, ifVersion) => (await $.state.set(TASKS, tasks, { ifVersion })).isSet,
     status: text => $.ui.status(text),
@@ -104,39 +92,41 @@ async function workerOr(host: Host, alias: unknown): Promise<Worker | string> {
   return names.length ? `No worker named ${String(alias)}. Known workers: ${names.join(', ')}.` : 'No workers registered. Ask the user to run /a2a add <url>.'
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  const settingTokens = parseTokens(options.tokens)
+
   on('session.start', async ($, e, next) => {
     await Promise.all([
       ...TOOLS.map(t => $.tool.register(t)),
-      $.command.register({ name: 'a2a', description: 'Manage A2A worker agents', argumentHint: 'add <url> [alias] [--token-env VAR] | list | remove <alias>' }),
+      $.command.register({ name: 'a2a', description: 'Manage A2A worker agents', argumentHint: 'add <url> [alias] [--token-setting | --token-cmd "<cmd>" | --token-file <path>] | list | remove <alias>' }),
     ])
-    await resume(hostOf($))
+    await resume(hostOf($, settingTokens))
     return next(e)
   })
 
-  on('command.run', { command: 'a2a' }, async ($, e) => ({ text: e.args.trim() ? await runCommand(hostOf($), e.args) : USAGE }))
+  on('command.run', { command: 'a2a' }, async ($, e) => ({ text: e.args.trim() ? await runCommand(hostOf($, settingTokens), e.args) : USAGE }))
 
   on('tool.call', { tool: 'mcp__a2a-mod__workers' }, async $ => {
-    const all = Object.values(await loadWorkers(hostOf($)))
+    const all = Object.values(await loadWorkers(hostOf($, settingTokens)))
     if (!all.length) return { result: 'No workers registered. Ask the user to run /a2a add <url>.' }
     return { result: all.map(w => `${w.alias}: ${w.name}. ${w.description}\n  skills: ${w.skills.map(s => `${s.id} (${s.description || s.name})`).join('; ') || 'none listed'}`).join('\n') }
   })
 
   on('tool.call', { tool: 'mcp__a2a-mod__send' }, async ($, e, next) => {
     const input = e as unknown as { worker?: string; message?: string; taskId?: string; contextId?: string }
-    const host = hostOf($)
+    const host = hostOf($, settingTokens)
     const w = await workerOr(host, input.worker)
     if (typeof w === 'string') return { result: w }
     try {
       const fetch = host.fetch
-      const t = await targetOf(host, w)
+      const t = await bounded($, next.budget.remainingMs, next.signal, w.alias, targetOf(host, w))
       let out = await bounded($, next.budget.remainingMs, next.signal, w.alias, send(fetch, t, { text: String(input.message ?? ''), taskId: input.taskId, contextId: input.contextId }))
       for (const ms of INLINE_POLLS_MS) {
         if (out.kind !== 'task' || !isLive(out.state)) break
         if (next.budget.remainingMs - ms < BUDGET_RESERVE_MS) break
         try { await $.clock.sleep(ms, { signal: next.signal }) } catch { break }
         // A slow poll keeps the last state, so the task is still tracked below.
-        try { out = await bounded($, next.budget.remainingMs, next.signal, w.alias, getTask(fetch, t, out.taskId)) } catch (err) { if (err instanceof A2AError) break; throw err }
+        try { out = await bounded($, next.budget.remainingMs, next.signal, w.alias, getTask(fetch, t, out.taskId)) } catch (err) { if (err instanceof A2AError) { noteFailure(w, err); break } throw err }
       }
       if (out.kind === 'task' && isLive(out.state)) {
         await track(host, { worker: w.alias, taskId: out.taskId, contextId: out.contextId, state: out.state, startedAt: Date.now() })
@@ -144,6 +134,7 @@ export const register: Register = on => {
       }
       return { result: describeOutcome(w.alias, out) }
     } catch (err) {
+      noteFailure(w, err)
       if (err instanceof A2AError) return { result: `a2a: ${err.message}` }
       throw err
     }
@@ -151,15 +142,16 @@ export const register: Register = on => {
 
   on('tool.call', { tool: 'mcp__a2a-mod__task' }, async ($, e, next) => {
     const input = e as unknown as { worker?: string; taskId?: string; cancel?: boolean }
-    const host = hostOf($)
+    const host = hostOf($, settingTokens)
     const w = await workerOr(host, input.worker)
     if (typeof w === 'string') return { result: w }
     try {
       const fetch = host.fetch
-      const t = await targetOf(host, w)
+      const t = await bounded($, next.budget.remainingMs, next.signal, w.alias, targetOf(host, w))
       const out = await bounded($, next.budget.remainingMs, next.signal, w.alias, input.cancel ? cancelTask(fetch, t, String(input.taskId)) : getTask(fetch, t, String(input.taskId)))
       return { result: describeOutcome(w.alias, out, FULL_MAX) }
     } catch (err) {
+      noteFailure(w, err)
       if (err instanceof A2AError) return { result: `a2a: ${err.message}` }
       throw err
     }

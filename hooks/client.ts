@@ -3,7 +3,14 @@ import { cardUrlFor, parseCard, parseSend, parseTask, rpcBody, type Op, type OpP
 
 export type Fetcher = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<{ status: number; ok: boolean; text: string }>
 
-export class A2AError extends Error {}
+export class A2AError extends Error {
+  /** The HTTP status when the worker refused the request (401 or 403). */
+  status?: number
+  constructor(message: string, status?: number) {
+    super(message)
+    this.status = status
+  }
+}
 
 export const scrub = (text: string, token?: string) => (token ? text.replaceAll(token, '[token]') : text)
 
@@ -36,8 +43,7 @@ async function rpc(fetch: Fetcher, t: Target, op: Op, params: OpParams): Promise
     throw new A2AError(scrub(`could not reach worker ${t.alias} at ${origin}: ${err instanceof Error ? err.message : String(err)}`, t.token))
   }
   if (res.status === 401 || res.status === 403) {
-    const fix = t.tokenEnv ? `check the ${t.tokenEnv} environment variable` : `re-add it with --token-env <VAR>`
-    throw new A2AError(`worker ${t.alias} refused the request (HTTP ${res.status}); its token is ${t.token ? 'wrong or expired' : 'missing'}. The user should ${fix}.`)
+    throw new A2AError(`worker ${t.alias} refused the request (HTTP ${res.status}); its token is ${t.token ? 'wrong or expired' : 'missing'}. The user should check its token source (/a2a list shows it).`, res.status)
   }
   if (!res.ok) throw new A2AError(`worker ${t.alias} answered HTTP ${res.status}`)
   const body = parseJson(res.text, `worker ${t.alias}`)
