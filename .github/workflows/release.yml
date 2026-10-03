@@ -32,11 +32,11 @@ jobs:
           ' CHANGELOG.md > notes.md
           test -s notes.md
       - name: Plugin archive
-        run: git archive --format=tar.gz --prefix="a2a-dispatch-${GITHUB_REF_NAME}/" -o "a2a-dispatch-${GITHUB_REF_NAME}.tar.gz" HEAD
+        run: git archive --format=tar.gz --prefix="a2a-mod-${GITHUB_REF_NAME}/" -o "a2a-mod-${GITHUB_REF_NAME}.tar.gz" HEAD
       - uses: softprops/action-gh-release@v3
         with:
           # A hyphen in the tag means a pre-release (v0.2.0-rc.1). Marking it
           # keeps the "latest release" link on the last stable tag.
           prerelease: ${{ contains(github.ref_name, '-') }}
           body_path: notes.md
-          files: a2a-dispatch-*.tar.gz
+          files: a2a-mod-*.tar.gz

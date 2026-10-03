@@ -1,12 +1,12 @@
 name: Bug
-description: a2a-dispatch did something wrong
+description: a2a-mod did something wrong
 labels: [bug]
 body:
   - type: input
     id: versions
     attributes:
       label: Versions
-      description: Output of `claude --version`, and the a2a-dispatch version from `/plugin`
+      description: Output of `claude --version`, and the a2a-mod version from `/plugin`
     validations:
       required: true
   - type: input
@@ -27,5 +27,5 @@ body:
     id: log
     attributes:
       label: Debug log
-      description: Lines starting with `a2a-dispatch:` from a session run with `claude --debug`. Remove any token first.
+      description: Lines starting with `a2a-mod:` from a session run with `claude --debug`. Remove any token first.
       render: text

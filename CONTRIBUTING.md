@@ -1,4 +1,4 @@
-# Contributing to a2a-dispatch
+# Contributing to a2a-mod
 
 ## Setup
 

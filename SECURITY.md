@@ -2,7 +2,7 @@
 
 ## Reporting
 
-Open a private security advisory at https://github.com/NovusEdge/a2a-dispatch/security/advisories/new. Do not open a public issue.
+Open a private security advisory at https://github.com/NovusEdge/a2a-mod/security/advisories/new. Do not open a public issue.
 
 You get an acknowledgement within 7 days and a fix or a decision within 90 days. Public disclosure waits for the fix or the 90 days, whichever comes first.
 

@@ -1,5 +1,5 @@
 name: Worker compatibility
-description: A specific A2A agent or framework does not work with a2a-dispatch
+description: A specific A2A agent or framework does not work with a2a-mod
 labels: [compat]
 body:
   - type: input
