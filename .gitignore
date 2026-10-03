@@ -154,6 +154,7 @@ superpowers/
 docs/superpowers/
 .impeccable/
 .claude/settings.local.json
+.claude/worktrees/
 
 # Claude Code writes these on every load of the mod
 .claude-plugin/types/
