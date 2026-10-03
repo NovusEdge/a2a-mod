@@ -21,10 +21,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Pinned to the oldest release with mods, so CI fails if the mod reaches
-      # for API that only a newer Claude Code has.
+      # Same version as types/vendor/claude-code.d.ts; bump both together.
       - name: Install Claude Code
-        run: pnpm add -g @anthropic-ai/claude-code@2.1.287
+        run: pnpm add -g @anthropic-ai/claude-code@2.1.288 && claude --version
       - run: pnpm check
       - run: pnpm test
 

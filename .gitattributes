@@ -1,1 +1,2 @@
 .docket/ledger.jsonl merge=docket
+types/vendor/** linguist-generated=true
