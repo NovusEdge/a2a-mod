@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a2a-mod</title>
+<meta name="description" content="A2A protocol client for Claude Code: Claude hands tasks to non-Claude worker agents over Agent2Agent and picks up their results.">
+<style>
+  :root { --bg: #fbfbfa; --fg: #1d2127; --dim: #5f6873; --line: #e2e4e8; --code: #f1f2f4; --accent: #2f8f86; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0d0f12; --fg: #d6dae0; --dim: #8b939e; --line: #262b33; --code: #16191e; --accent: #4fb3a9; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 72px 16px; }
+  h1 { font: 700 34px/1.2 ui-monospace, Menlo, monospace; margin: 0 0 8px; }
+  h1 span { color: var(--accent); }
+  p { color: var(--dim); margin: 0 0 24px; }
+  pre { background: var(--code); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font: 14px/1.6 ui-monospace, Menlo, monospace; color: var(--fg); }
+  a { color: var(--accent); }
+  .note { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span>a2a</span>-mod</h1>
+  <p>A Claude Code mod that lets Claude hand tasks to non-Claude worker agents over the <a href="https://a2a-protocol.org/">Agent2Agent protocol</a> (1.0 and 0.3), carry on working, and pick the results up when they land.</p>
+  <pre>/plugin marketplace add NovusEdge/a2a-mod
+/plugin install a2a-mod@a2a-mod
+/a2a add https://your-worker.example</pre>
+  <p class="note">Needs Claude Code 2.1.287 or later. Docs are on the way; until then, see <a href="https://github.com/NovusEdge/a2a-mod">the repository</a>.</p>
+</main>
+</body>
+</html>
