@@ -1,4 +1,5 @@
-import type { Target, Worker } from '../types/index.d.ts'
+import type { StateRead, Timer } from 'claude-code'
+import type { Target, TrackedTask, Worker } from '../types/index.d.ts'
 import type { Fetcher } from './client.ts'
 
 // The engine as the other modules see it. The loader refuses $ passed across an import,
@@ -8,6 +9,13 @@ export type Host = {
   readWorkers(): Promise<unknown>
   writeWorkers(all: Record<string, Worker>): Promise<void>
   env(name: TokenEnv): Promise<string | undefined>
+  readTasks(): Promise<StateRead<TrackedTask[]>>
+  /** False when another write landed since `ifVersion`. */
+  writeTasks(tasks: TrackedTask[], ifVersion: number): Promise<boolean>
+  status(text: string | undefined): void
+  every(ms: number, fn: () => void): Timer
+  sleep(ms: number): Promise<void>
+  wake(text: string): Promise<void>
 }
 
 // $.env.get only takes a literal name, so a token can only come from these. register.ts spells each one.

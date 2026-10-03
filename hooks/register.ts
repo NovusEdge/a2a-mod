@@ -4,9 +4,12 @@ import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
 import { describeOutcome } from './format.ts'
 import { loadWorkers, targetOf, type Host, type TokenEnv } from './registry.ts'
+import { resume, track } from './tracker.ts'
 import { isLive } from './wire.ts'
 
 type Engine = EngineInterface
+
+const TASKS = { plugin: 'a2a-mod', key: 'tasks' } as const
 
 // Each name is spelled out because $.env.get refuses a computed one. Keep in step with TOKEN_ENVS.
 function readToken($: Engine, name: TokenEnv): Promise<string | undefined> {
@@ -29,6 +32,12 @@ function hostOf($: Engine): Host {
     readWorkers: () => $.store.get('workers'),
     writeWorkers: all => $.store.set('workers', all),
     env: name => readToken($, name),
+    readTasks: () => $.state.get(TASKS),
+    writeTasks: async (tasks, ifVersion) => (await $.state.set(TASKS, tasks, { ifVersion })).isSet,
+    status: text => $.ui.status(text),
+    every: (ms, fn) => $.clock.every(ms, fn),
+    sleep: ms => $.clock.sleep(ms),
+    wake: async text => { await $.prompt.submit({ text }) },
   }
 }
 
@@ -77,6 +86,7 @@ export const register: Register = on => {
       ...TOOLS.map(t => $.tool.register(t)),
       $.command.register({ name: 'a2a', description: 'Manage A2A worker agents', argumentHint: 'add <url> [alias] [--token-env VAR] | list | remove <alias>' }),
     ])
+    await resume(hostOf($))
     return next(e)
   })
 
@@ -104,7 +114,8 @@ export const register: Register = on => {
         out = await getTask(fetch, t, out.taskId)
       }
       if (out.kind === 'task' && isLive(out.state)) {
-        return { result: `${w.alias} task ${out.taskId} is still ${out.state}. Use the task tool to check it.` }
+        await track(host, { worker: w.alias, taskId: out.taskId, contextId: out.contextId, state: out.state, startedAt: Date.now() })
+        return { result: `${w.alias} is working on it (task ${out.taskId}, ${out.state}). You will get a message when it finishes; do not poll. Carry on with other work.` }
       }
       return { result: describeOutcome(w.alias, out) }
     } catch (err) {

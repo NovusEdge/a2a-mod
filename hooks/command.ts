@@ -1,6 +1,7 @@
 import type { Worker } from '../types/index.d.ts'
 import { discover, A2AError } from './client.ts'
 import { isTokenEnv, loadWorkers, removeWorker, saveWorker, TOKEN_ENVS, type Host } from './registry.ts'
+import { runningTasks } from './tracker.ts'
 
 export const USAGE = [
   'Usage:',
@@ -59,7 +60,10 @@ export async function runCommand(host: Host, args: string): Promise<string> {
       case 'add': return await add(host, words)
       case 'list': {
         const all = Object.values(await loadWorkers(host))
-        return all.length ? all.map(describe).join('\n\n') : 'No workers registered. Add one with /a2a add <url>.'
+        const workers = all.length ? all.map(describe).join('\n\n') : 'No workers registered. Add one with /a2a add <url>.'
+        const now = Date.now()
+        const tasks = (await runningTasks(host)).map(t => `  ${t.worker} ${t.taskId} ${t.state}, ${Math.round((now - t.startedAt) / 1000)}s`)
+        return tasks.length ? `${workers}\n\nRunning:\n${tasks.join('\n')}` : workers
       }
       case 'remove': return words[0] && (await removeWorker(host, words[0])) ? `Removed ${words[0]}.` : `No worker named ${words[0] ?? '(none given)'}.`
       default: return USAGE
