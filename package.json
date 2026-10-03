@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "check": "claude plugin validate --strict . && tsc -p . && tsc -p test/tsconfig.node.json",
+    "check": "claude plugin validate --strict . && claude plugin validate --strict .claude-plugin/plugin.json && tsc -p . && tsc -p test/tsconfig.node.json",
     "test": "claude plugin test .",
     "worker": "node test/fake-worker.ts",
     "capture": "node test/capture.ts",
