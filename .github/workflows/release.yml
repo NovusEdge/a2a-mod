@@ -19,9 +19,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm add -g @anthropic-ai/claude-code@2.1.287
+      # Same version as types/vendor/claude-code.d.ts; bump both together.
+      - name: Install Claude Code
+        run: pnpm add -g @anthropic-ai/claude-code@2.1.288 && claude --version
       - run: pnpm check
       - run: pnpm test
+      - run: pnpm e2e
       - name: Release notes from CHANGELOG
         run: |
           version="${GITHUB_REF_NAME#v}"
