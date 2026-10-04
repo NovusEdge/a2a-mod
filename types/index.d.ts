@@ -73,13 +73,19 @@ export type RecentTask = {
   canceling?: true
   /** The last `N%` a live task's status message carried. */
   progress?: number
+  /** A live task's latest status message, cut short. */
+  message?: string
 }
 
 /** What one send tool call came to, keyed by its tool_use_id. */
 export type CallInfo = { worker: string; taskId?: string; state: RecentState; startedAt: number }
 
-/** Task ids of the pane rows expanded by Open, and of those showing a Reply field. */
-export type PaneView = { open: string[]; replying: string[] }
+/**
+ * What the person has done to the pane. `open` holds the one task whose detail shows and `replying` the
+ * tasks with a Reply field; `collapsed` and `all` hold worker aliases (box folded to one line; more than
+ * three tasks listed); `clearedAt` hides tasks that finished by then.
+ */
+export type PaneView = { open: string[]; replying: string[]; collapsed: string[]; all: string[]; clearedAt: number }
 
 /** A reply the user sent from the pane, told to Claude with their next prompt. */
 export type SentReply = { worker: string; taskId: string; text: string }

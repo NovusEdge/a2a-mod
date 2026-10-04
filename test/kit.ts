@@ -156,7 +156,9 @@ export const PANE_PROPS = (bodyColumns = 60, bodyRows = 40): RenderPropsOf['Pane
 
 /** The text under a node, as drawn left to right. */
 export const textUnder = (n: unknown): string =>
-  typeof n === 'string' ? n : ((n as Node | undefined)?.children ?? []).map(textUnder).join('')
+  typeof n === 'string' ? n
+    : (n as Node | undefined)?.type === 'Button' ? String((n as Node).props?.label ?? '')
+      : ((n as Node | undefined)?.children ?? []).map(textUnder).join('')
 
 /** The innermost Box whose text holds `needle`: one drawn line, or a block when the text spans lines. */
 export function boxWith(n: unknown, needle: string): Node | undefined {
@@ -223,7 +225,7 @@ export function widthOf(tree: unknown): number {
   const kids = n.children ?? []
   switch (n.type) {
     case 'Text': return kids.reduce<number>((a, c) => a + widthOf(c), 0)
-    case 'Button': return [...String(n.props?.label ?? '')].length + 4
+    case 'Button': return [...String(n.props?.label ?? '')].length + (n.props?.plain ? 0 : 4)
     case 'Client': return Number(n.props?.width ?? 0)
     case 'Box': {
       const inner = n.props?.flexDirection === 'column' ? Math.max(0, ...kids.map(widthOf)) : kids.reduce<number>((a, c) => a + widthOf(c), 0)

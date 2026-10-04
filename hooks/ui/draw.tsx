@@ -84,6 +84,21 @@ export function rowLines(p: RowProps, t: Tick): Cell[][] {
   return [clip(first, p.width), clip(second, p.width)]
 }
 
+export type BarProps = { startedAt: number; now: number; progress: number | null; width: number; anim: boolean }
+
+/** The line under a running pane row: the bar, then elapsed time, then the percentage when the task reported one. */
+export function barLine(p: BarProps, slow: number, elapsedMs: number): Cell[] {
+  const time = ` ${clock(elapsedMs)}`
+  const pct = p.progress === null ? '' : ` ${String(Math.round(p.progress)).padStart(3)}%`
+  const cells: Cell[] = [
+    { text: '  ' },
+    ...bar(Math.max(1, p.width - 2 - time.length - pct.length), p.anim ? slow : 0, p.progress ?? undefined),
+    { text: time, color: 'inactive' },
+    ...(pct ? [{ text: pct, color: 'success' }] : []),
+  ]
+  return clip(cells, p.width)
+}
+
 export type WireProps = { names: string[]; more: number; dir: Direction; anim: boolean; pal: Palette }
 
 const WIRE_LEN = 8

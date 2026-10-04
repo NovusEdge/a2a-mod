@@ -142,11 +142,13 @@ sequenceDiagram
 | Piece | `full` (default) | `pane` | `minimal` |
 | --- | :-: | :-: | :-: |
 | Status line with the live task, `a2a ⠋ fake slow 20 build 0:12` | yes | yes | yes |
-| Workers pane, opened with `/a2a`: Cancel, Open, Copy, Reply | yes | yes | no |
+| Workers pane, opened with `/a2a`: agent tree, press a task to open it, then Copy, Reply, Cancel | yes | yes | no |
 | Cards for `send` and for wake messages | yes | no | no |
 | Hand-off band above the prompt, only while a task runs or waits | yes | no | no |
 
 The status line is where a running task shows, because it stays visible next to `/diff`. The band is the same hand-off, drawn as a wire line with a row of task chips under it, and goes away about 2 seconds after the last task ends. The workers pane never opens by itself: run `/a2a`. It asks for a slim dock (32 columns), so it sits beside `/diff` as a tab, and it holds down to 24 columns.
+
+The pane starts with a tree: `Claude`, then a branch per worker with its task counts (`● 1  ? 1  ✓ 4`). Press a worker's name to fold its box. A box lists three tasks, live ones first, with `+N more` for the rest. A task is one line with no buttons; press the line to open it and you get its result, question or status, and the actions that fit it. A waiting task ends with a violet `reply ↵`. `Clear done` in the header hides finished tasks from the pane.
 
 Change the layout or turn animations off in `/config`. With animations off, every effect draws one still frame. VS Code and the mobile app draw still frames, and the mobile app has no Reply. Built and tested on Claude Code 2.1.288. More on [the UI page](https://a2a.khimani.dev/ui).
 

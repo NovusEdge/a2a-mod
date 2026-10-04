@@ -50,14 +50,16 @@ for (const surface of SURFACES) {
     const key = `row:${SLOW_ID}`
     expect(await ui.find({ type: 'Text', text: /1 live/ })).toBeDefined()
     expect(await ui.find({ type: 'Client', key })).toBeDefined()
-    expect(await ui.find({ type: 'Button', key: `reply:${SLOW_ID}` })).toBeUndefined()
+    expect(await ui.find({ type: 'Button', key: `cancel:${SLOW_ID}` })).toBeUndefined()
     const before = JSON.stringify(await ui.drawn({ in: key }))
     await ui.advance(400)
     expect(JSON.stringify(await ui.drawn({ in: key }))).not.toBe(before)
 
+    await ui.press({ key: `open:${SLOW_ID}` })
+    expect(await ui.find({ type: 'Button', key: `reply:${SLOW_ID}` })).toBeUndefined()
     await ui.press({ key: `cancel:${SLOW_ID}` })
     expect(JSON.parse(net.calls.at(-1)?.init?.body ?? '{}').method).toBe('CancelTask')
-    expect(await ui.find({ type: 'Text', text: /canceling…/, in: key })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /canceling…/ })).toBeDefined()
     canceled = true
     await clock.advance(5000)
     expect(woke.at(-1)?.text).toContain('canceled')
@@ -73,6 +75,8 @@ for (const surface of SURFACES) {
     const net = fakeNet(on, { send: () => (replied ? resumed : f.v1_send_ask), get: () => (replied ? resumedGet : f.v1_get_input_required) })
     expect(await sendAndWait($, clock, 'ask colour')).toContain('input-required')
     const ui = await mountPane($, surface)
+    expect(await ui.find({ type: 'Button', key: `reply:${ASK_ID}` })).toBeUndefined()
+    await ui.press({ key: `open:${ASK_ID}` })
     expect(await ui.find({ type: 'Button', key: `cancel:${ASK_ID}` })).toBeDefined()
 
     await ui.press({ key: `reply:${ASK_ID}` })
@@ -101,9 +105,12 @@ for (const surface of SURFACES) {
     fakeNet(on, { send: f.v1_send_ask, get: f.v1_get_input_required })
     await sendAndWait($, clock, 'ask colour')
     const ui = await mountPane($, surface)
+    await ui.press({ key: `open:${ASK_ID}` })
     await ui.press({ key: `reply:${ASK_ID}` })
     await ui.input({ key: `input:${ASK_ID}`, text: 'blu', kind: 'change' })
-    await ui.press({ key: `open:${ASK_ID}` })
+    // Folding the box and opening it again redraws the pane.
+    await ui.press({ key: 'branch:fake' })
+    await ui.press({ key: 'branch:fake' })
     expect((await ui.find({ type: 'Input', key: `input:${ASK_ID}` }))?.props.value).toBe('blu')
     await ui.press({ key: `discard:${ASK_ID}` })
     expect(await ui.find({ type: 'Input', key: `input:${ASK_ID}` })).toBeUndefined()
@@ -146,6 +153,7 @@ for (const surface of SURFACES) {
     const net = fakeNet(on, { send: f.v1_send_slow, get: f.v1_get_working })
     await sendAndWait($, clock, 'slow 60 build')
     const ui = await mountPane($, surface)
+    await ui.press({ key: `open:${SLOW_ID}` })
     await ui.press({ key: `cancel:${SLOW_ID}` })
     expect(await ui.find({ type: 'Button', key: `cancel:${SLOW_ID}` })).toBeUndefined()
     expect(net.calls.filter(c => JSON.parse(c.init?.body ?? '{}').method === 'CancelTask').length).toBe(1)
@@ -158,6 +166,7 @@ for (const surface of SURFACES) {
     const net = fakeNet(on, { send: f.v1_send_ask, get: f.v1_get_input_required })
     await sendAndWait($, clock, 'ask colour')
     const ui = await mountPane($, surface)
+    await ui.press({ key: `open:${ASK_ID}` })
     await ui.press({ key: `reply:${ASK_ID}` })
     const before = net.calls.length
     await ui.input({ key: `input:${ASK_ID}`, text: '   ' })
@@ -197,7 +206,7 @@ for (const surface of SURFACES) {
     expect(await ui.find({ type: 'Button', key: `cancel:${ASK_ID}` })).toBeUndefined()
   })
 
-  test(`at 36 columns the labels shrink and nothing is wider than the pane on ${surface}`, WITH_TOKEN, async ($, on) => {
+  test(`at 36 columns nothing is wider than the pane, open rows included, on ${surface}`, WITH_TOKEN, async ($, on) => {
     mock.store(on, STORE)
     const clock = mock.clock(on)
     engineUi(on)
@@ -206,9 +215,12 @@ for (const surface of SURFACES) {
     await sendAndWait($, clock, 'ask colour')
     await sendAndWait($, clock, `slow 60 ${'a very long task description '.repeat(4)}`)
     const ui = await mountPane($, surface, 36)
-    expect((await ui.find({ type: 'Button', key: `cancel:${SLOW_ID}` }))?.props.label).toBe('✕')
-    expect((await ui.find({ type: 'Button', key: `reply:${ASK_ID}` }))?.props.label).toBe('↩')
-    expect(await ui.find({ type: 'Text', text: /^echo$/ })).toBeUndefined()
+    for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(36)
+    await ui.press({ key: `open:${SLOW_ID}` })
+    expect((await ui.find({ type: 'Button', key: `cancel:${SLOW_ID}` }))?.props.label).toBe('Cancel')
+    for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(36)
+    await ui.press({ key: `open:${ASK_ID}` })
+    expect((await ui.find({ type: 'Button', key: `reply:${ASK_ID}` }))?.props.label).toBe('Reply')
     for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(36)
   })
 
@@ -218,6 +230,8 @@ for (const surface of SURFACES) {
     engineUi(on)
     seedRecent(on, Array.from({ length: 20 }, (_, i) => seeded(`t${i}`, { text: `slow 60 job ${i}` })))
     const ui = await mountPane($, surface)
+    expect((await ui.findAll({ type: 'Client' })).length).toBe(3)
+    await ui.press({ key: 'more:fake' })
     expect((await ui.findAll({ type: 'Client' })).length).toBe(20)
     await ui.advance(400)
     expect((await drawnAll(ui)).length).toBe(21)
@@ -230,6 +244,7 @@ for (const surface of SURFACES) {
     // The send path cuts a message to TEXT_MAX, so the seeded rows carry the longest text it can store.
     seedRecent(on, Array.from({ length: RECENT_MAX }, (_, i) => seeded(`e${i}`, { text: 'm'.repeat(TEXT_MAX), state: 'completed', endedAt: 0, result: 'r'.repeat(RESULT_MAX) })))
     const ui = await mountPane($, surface)
+    await ui.press({ key: 'more:fake' })
     await ui.press({ key: 'open:e0' })
     expect((await ui.findAll({ type: 'Markdown' })).length).toBe(1)
     expect(await ui.find({ type: 'Text', text: /^engine Pane$/ })).toBeUndefined()
@@ -277,6 +292,7 @@ test('vscode draws still rows and keeps Reply; mobile drops Reply and every Inpu
 
   const vs = await mountPane($, 'vscode')
   expect(has(await vs.drawn(), 'Client')).toBe(false)
+  await vs.press({ key: `open:${ASK_ID}` })
   await vs.press({ key: `reply:${ASK_ID}` })
   expect(await vs.find({ type: 'Input', key: `input:${ASK_ID}` })).toBeDefined()
   await vs.press({ key: `discard:${ASK_ID}` })
@@ -285,8 +301,9 @@ test('vscode draws still rows and keeps Reply; mobile drops Reply and every Inpu
   const tree = await mobile.drawn()
   expect(has(tree, 'Client')).toBe(false)
   expect(has(tree, 'Input')).toBe(false)
+  expect(await mobile.find({ type: 'Text', text: 'reply ↵' })).toBeUndefined()
+  // The vscode pane above left this row open, and the open row is shared state.
   expect(await mobile.find({ type: 'Button', key: `reply:${ASK_ID}` })).toBeUndefined()
-  expect(await mobile.find({ type: 'Button', key: `open:${ASK_ID}` })).toBeDefined()
   expect(await mobile.find({ type: 'Button', key: `cancel:${ASK_ID}` })).toBeDefined()
 })
 
@@ -308,6 +325,18 @@ test('tracking a task never opens the pane', WITH_TOKEN, async ($, on) => {
   await clock.advance(10_000)
   expect(seen.opened).toEqual([])
 })
+
+function parentOf(tree: unknown, kid: Node): Node | undefined {
+  const n = tree as Node
+  if ((n.children ?? []).includes(kid)) return n
+  for (const c of n.children ?? []) {
+    if (c && typeof c === 'object') {
+      const hit = parentOf(c, kid)
+      if (hit) return hit
+    }
+  }
+  return undefined
+}
 
 const TWO = { workers: { ...STORE.workers, slow: { ...STORE.workers.fake, alias: 'slow', name: 'Slow Worker', addedAt: 1 } } }
 
@@ -331,9 +360,23 @@ for (const cols of [32, 24]) {
   test(`the pane at ${cols} columns never draws a line wider than the body`, WITH_TOKEN, async ($, on) => {
     const ui = await busyPane($, on, cols)
     for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(cols)
-    await ui.press({ key: `reply:${ASK_ID}` })
     await ui.press({ key: `open:${ASK_ID}` })
     for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(cols)
+    await ui.press({ key: `reply:${ASK_ID}` })
+    for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(cols)
+  })
+
+  test(`an open row's actions start at the text column, one apart, and fit at ${cols} columns`, WITH_TOKEN, async ($, on) => {
+    const ui = await busyPane($, on, cols)
+    await ui.press({ key: `open:${ASK_ID}` })
+    const tree = await ui.drawn()
+    const detail = boxWith(tree, 'Cancel') ?? boxWith(tree, '✕')
+    const buttons = (detail?.children ?? []) as Node[]
+    expect(buttons.map(c => c.type)).toEqual(['Button', 'Text', 'Button'])
+    expect(textUnder(buttons[1])).toBe(' ')
+    expect(widthOf(detail)).toBeLessThanOrEqual(content - 2)
+    // The detail column is indented by the glyph and its space, which is where the task text starts.
+    expect(parentOf(tree, detail!)?.props).toMatchObject({ marginLeft: 2 })
   })
 
   test(`the header, rule, worker head and task row fill the width at ${cols} columns`, WITH_TOKEN, async ($, on) => {
@@ -427,4 +470,106 @@ test('the empty pane is centred and says how to add a worker', async ($, on) => 
   const root = (await ui.drawn()) as Node
   expect(root.props).toMatchObject({ alignItems: 'center', justifyContent: 'center' })
   expect(widthOf(root)).toBeLessThanOrEqual(32)
+})
+
+const NOW = 100_000
+const done = (id: string, over: Partial<RecentTask> = {}) => seeded(id, { state: 'completed', endedAt: NOW - 1000, result: `result ${id}`, ...over })
+
+async function seededPane($: Engine, on: Parameters<typeof mock.store>[0], rows: RecentTask[], cols = 32, surface: RenderSurface = 'terminal') {
+  mock.store(on, STORE)
+  mock.clock(on, { now: NOW })
+  engineUi(on)
+  seedRecent(on, rows)
+  return mountPane($, surface, cols)
+}
+
+const keysOf = async (ui: Awaited<ReturnType<typeof mountPane>>, type: string) =>
+  (await ui.findAll({ type: type as 'Button' })).map(b => String(b.props.key))
+
+test('the tree lists Claude and a branch per worker with a count per state, none for zero', async ($, on) => {
+  const ui = await seededPane($, on, [seeded('a'), seeded('b'), seeded('q', { state: 'input-required', result: 'which?' }), done('c'), done('d'), done('e'), done('f')])
+  const tree = await ui.drawn()
+  expect(await ui.find({ type: 'Text', text: 'Claude' })).toBeDefined()
+  const branch = textUnder(boxWith(tree, '└─'))
+  expect(branch).toBe('└─ fake ● 2  ? 1  ✓ 4')
+})
+
+test('a branch press folds the worker box to one line with the same counts, and again unfolds it', async ($, on) => {
+  const ui = await seededPane($, on, [seeded('a'), done('c'), done('d')])
+  expect(await ui.find({ type: 'Button', key: 'open:a' })).toBeDefined()
+  await ui.press({ key: 'branch:fake' })
+  expect(await ui.find({ type: 'Button', key: 'open:a' })).toBeUndefined()
+  const folded = boxWith(await ui.drawn(), '▸ fake')
+  expect(textUnder(folded)).toContain('● 1  ✓ 2')
+  expect(widthOf(folded)).toBe(32 - 6)
+  expect(await ui.find({ type: 'Text', text: 'A2A 1.0' })).toBeUndefined()
+  await ui.unmount()
+  const again = await mountPane($, 'terminal', 32)
+  expect(await again.find({ type: 'Button', key: 'open:a' })).toBeUndefined()
+  await again.press({ key: 'branch:fake' })
+  expect(await again.find({ type: 'Button', key: 'open:a' })).toBeDefined()
+  expect(await again.find({ type: 'Text', text: '▾ ' })).toBeDefined()
+})
+
+test('five tasks show three and +2 more, which lists all and shows less', async ($, on) => {
+  const ui = await seededPane($, on, ['a', 'b', 'c', 'd', 'e'].map(id => done(id)))
+  expect(await keysOf(ui, 'Button')).toEqual(expect.arrayContaining(['open:a', 'open:b', 'open:c', 'more:fake']))
+  expect(await ui.find({ type: 'Button', key: 'open:d' })).toBeUndefined()
+  expect((await ui.find({ type: 'Button', key: 'more:fake' }))?.props.label).toBe('+2 more')
+  await ui.press({ key: 'more:fake' })
+  expect(await ui.find({ type: 'Button', key: 'open:e' })).toBeDefined()
+  expect((await ui.find({ type: 'Button', key: 'more:fake' }))?.props.label).toBe('show less')
+  await ui.press({ key: 'more:fake' })
+  expect(await ui.find({ type: 'Button', key: 'open:e' })).toBeUndefined()
+  expect((await ui.find({ type: 'Button', key: 'more:fake' }))?.props.label).toBe('+2 more')
+})
+
+test('live tasks are always in the first three, whatever their age', async ($, on) => {
+  const ui = await seededPane($, on, [done('n1'), done('n2'), done('n3'), seeded('run'), seeded('wait', { state: 'input-required', result: 'which?' })])
+  const opens = (await keysOf(ui, 'Button')).filter(k => k.startsWith('open:'))
+  expect(opens).toEqual(['open:run', 'open:wait', 'open:n1'])
+})
+
+test('closed rows draw no action buttons; a waiting row ends with a violet reply hint', async ($, on) => {
+  const ui = await seededPane($, on, [seeded('run'), seeded('wait', { state: 'input-required', result: 'which?' }), done('ok')])
+  const keys = await keysOf(ui, 'Button')
+  for (const verb of ['cancel', 'copy', 'reply']) expect(keys.some(k => k.startsWith(`${verb}:`))).toBe(false)
+  expect(await ui.find({ type: 'Text', text: /reply ↵$/ })).toBeDefined()
+  expect((await ui.find({ type: 'Text', text: /reply ↵$/ }))?.props.color).toBe('suggestion')
+})
+
+test('pressing a row opens it, one at a time, with only the actions its state allows', async ($, on) => {
+  const ui = await seededPane($, on, [seeded('run', { message: 'step 2 of 5' }), seeded('wait', { state: 'input-required', result: 'which colour?' }), done('ok')])
+  const actions = async () => (await keysOf(ui, 'Button')).filter(k => /^(cancel|copy|reply):/.test(k))
+  await ui.press({ key: 'open:run' })
+  expect(await actions()).toEqual(['cancel:run'])
+  expect((await ui.find({ type: 'Markdown' }))?.props.text).toBe('step 2 of 5')
+  await ui.press({ key: 'open:wait' })
+  expect(await actions()).toEqual(['reply:wait', 'cancel:wait'])
+  expect((await ui.find({ type: 'Markdown' }))?.props.text).toBe('which colour?')
+  expect((await ui.findAll({ type: 'Markdown' })).length).toBe(1)
+  await ui.press({ key: 'open:ok' })
+  expect(await actions()).toEqual(['copy:ok'])
+  await ui.press({ key: 'open:ok' })
+  expect(await actions()).toEqual([])
+})
+
+test('Clear done hides finished tasks from the pane and leaves live ones', async ($, on) => {
+  // The last row ended after the press, so it is not covered by it.
+  const ui = await seededPane($, on, [seeded('run'), done('old1'), done('old2'), done('later', { endedAt: NOW + 500 })])
+  expect(await ui.find({ type: 'Button', key: 'clear-done' })).toBeDefined()
+  await ui.press({ key: 'clear-done' })
+  expect(await keysOf(ui, 'Button')).toEqual(expect.arrayContaining(['open:run', 'open:later']))
+  expect(await ui.find({ type: 'Button', key: 'open:old1' })).toBeUndefined()
+  expect(await ui.find({ type: 'Button', key: 'open:old2' })).toBeUndefined()
+})
+
+test('there is no Clear done while nothing has finished', async ($, on) => {
+  const ui = await seededPane($, on, [seeded('run')])
+  expect(await ui.find({ type: 'Button', key: 'clear-done' })).toBeUndefined()
+})
+
+test('the whole pane stays within 10 columns while its rows are closed', async ($, on) => {
+  const ui = await seededPane($, on, [seeded('run'), seeded('wait', { state: 'input-required', result: 'which?' }), done('ok')], 10)
+  for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(10)
 })

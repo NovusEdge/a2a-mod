@@ -4,7 +4,7 @@ import type { PaneView, RecentState, RecentTask, SentReply, Worker } from '../ty
 import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
 import { describeOutcome, FULL_MAX } from './format.ts'
-import { changeRecent, isWaiting, noteCall, noteSent, noteState, readRecent, visible } from './recent.ts'
+import { changeRecent, isOpen, isWaiting, noteCall, noteSent, noteState, readRecent, visible } from './recent.ts'
 import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
@@ -23,7 +23,9 @@ const PANE = { id: 'a2a-workers', title: 'A2A workers' } as const
 // Wanted sizes: a slim dock beside /diff, a short block when inline.
 const PANE_COLUMNS = 32
 const PANE_ROWS = 12
-const paneView = atom({ plugin: 'a2a-mod', key: 'pane' } as const, { open: [], replying: [] } as PaneView)
+// -1, not 0: a clock that starts at 0 can end a task at 0, and Clear done at that moment still has to hide it.
+const EMPTY_VIEW: PaneView = { open: [], replying: [], collapsed: [], all: [], clearedAt: -1 }
+const paneView = atom({ plugin: 'a2a-mod', key: 'pane' } as const, EMPTY_VIEW)
 const replies = atom({ plugin: 'a2a-mod', key: 'replies' } as const, [] as SentReply[])
 const played = atom({ plugin: 'a2a-mod', key: 'played' } as const, [] as string[])
 const PLAYED_MAX = 200
@@ -136,6 +138,7 @@ async function paletteOf($: Engine): Promise<Palette> {
 }
 
 const without = (ids: string[], id: string) => ids.filter(x => x !== id)
+const toggled = (ids: string[] | undefined, id: string) => ((ids ?? []).includes(id) ? without(ids ?? [], id) : [...(ids ?? []), id])
 
 // The card is indented two columns, so this leaves two spare on the right.
 const cardWidth = (columns: number | undefined) => Math.max(1, Math.min(100, (columns ?? 80) - 4))
@@ -289,11 +292,17 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: 'a2a-workers' }, async ($, e) => {
     const host = hostOf($, settingTokens, ui)
     const now = await nowOf($)
-    const [workers, list, view, durations, pal] = await Promise.all([loadWorkers(host), readRecent(host), read($, paneView), host.readDurations(), paletteOf($)])
+    const [workers, list, stored, durations, pal] = await Promise.all([loadWorkers(host), readRecent(host), read($, paneView), host.readDurations(), paletteOf($)])
+    // State saved by an earlier version lacks the newer fields.
+    const view: PaneView = { ...EMPTY_VIEW, ...stored }
     const act: PaneActions = {
       cancel: t => cancelFromPane($, host, t),
       // One row open at a time keeps the pane under the engine's 100,000-character tree limit.
       toggleOpen: t => update($, paneView, v => ({ ...v, open: v.open.includes(t.taskId) ? [] : [t.taskId] })),
+      toggleBox: alias => update($, paneView, v => ({ ...v, collapsed: toggled(v.collapsed, alias) })),
+      toggleAll: alias => update($, paneView, v => ({ ...v, all: toggled(v.all, alias) })),
+      // Hides what ended by now from the pane only; the recent list keeps it for the cards.
+      clearDone: async () => { const at = await nowOf($); await update($, paneView, v => ({ ...v, clearedAt: at })) },
       copy: async (t, press) => {
         const copied = await $.ui.copy({ text: t.result ?? '', surface: press.surface })
         if (!copied.isCopied) $.ui.toast(`a2a: nothing was copied: ${NOT_COPIED[copied.reason]}.`)
@@ -317,11 +326,12 @@ export const register: Register = (on, options) => {
       },
     }
     const shown = Object.values(workers).sort((a, b) => a.addedAt - b.addedAt)
-    const rows = visible(list, now)
+    const aging = visible(list, now)
     // A row ages out with no state change to redraw the pane, so a timer does it.
     paneExpiry?.cancel()
-    const due = nextRedraw(rows, now, false)
+    const due = nextRedraw(aging, now, false)
     paneExpiry = due === undefined ? undefined : $.clock.after(due, () => $.ui.invalidate('ui.render'))
+    const rows = aging.filter(t => isOpen(t) || (t.endedAt ?? t.startedAt) > view.clearedAt)
     return paneTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, height: e.props.scroll.bodyRows, now, anim: ui.animations, pal, workers: shown, rows, durations, view, drafts }, act)
   })
 

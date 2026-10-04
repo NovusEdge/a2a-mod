@@ -40,8 +40,11 @@ Run `/a2a` to open it. It never opens on its own, so a running task does not swi
 
 It is drawn for narrow widths and holds down to 24 columns:
 
-- A header, `⇄ a2a`, with the number of workers and live tasks at the right.
-- One rounded box per worker, with its A2A version at the right and its tasks inside. A running task has an animated row with its age and a progress bar. Buttons sit at the right edge of each task: Cancel, Open (the full result, with Copy) and Reply for a worker that asked a question.
+- A header, `⇄ a2a`, with the number of workers and live tasks at the right. Once a task has finished, `Clear done` appears there. It hides finished tasks from the pane only; the transcript cards still know them.
+- An agent tree under the header: `Claude`, then one branch per worker with a count for each state it has, such as `● 1  ? 1  ✓ 4`. Press a worker's name to fold its box to one line, and again to open it.
+- One rounded box per worker, titled `▾` (open) or `▸` (folded), with its A2A version at the right and its tasks inside. A box lists three tasks, running and waiting ones first. `+N more` lists all of them, and `show less` goes back to three.
+- A task is one line, and the line is the button: press it to open the task, press it again to close it. Only one task is open at a time. A running task has a progress bar and its age under the line. A waiting task ends with a violet `reply ↵`.
+- An open task shows its result, its question or its latest status message, then the actions that fit its state in one row under the task text: Copy for a finished task with a result, Reply for a waiting one, Cancel for a running or waiting one. Narrow panes shorten the labels to `⧉`, `↩` and `✕`.
 - A footer with `/a2a add <url>` and the key hints, kept at the bottom of the pane. The key hints go below 28 columns.
 
 From 40 columns up, each worker box also shows its skills and the run times of its last tasks. With no workers, the pane says how to add one.

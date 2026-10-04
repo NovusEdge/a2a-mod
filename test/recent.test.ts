@@ -71,6 +71,15 @@ test('the message that started a task is kept to 500 characters, so a full pane 
   expect(TEXT_MAX).toBe(500)
 })
 
+test('a running task keeps its latest status message, cut to 500 characters, and drops it once it ends', async () => {
+  const fx = fakeHost(answer({}))
+  await noteState(fx.host, 'fake', 't1', 'working', `step 2 of 5\u0007${'x'.repeat(600)}`)
+  expect(fx.recent()[0]?.message?.length).toBe(TEXT_MAX)
+  expect(fx.recent()[0]?.message).toMatch(/^step 2 of 5x/)
+  await noteState(fx.host, 'fake', 't1', 'completed', 'done')
+  expect(fx.recent()[0]).not.toHaveProperty('message')
+})
+
 test('a task that asks a question stays listed as waiting, is not polled, and shows in the status line', async () => {
   let polls = 0
   const fetch: Fetcher = async () => { polls++; return { status: 200, ok: true, text: JSON.stringify(f.v1_get_input_required) } }
