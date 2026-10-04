@@ -1,11 +1,11 @@
 ---
 title: Commands and tools
-description: The /a2a commands you run, and the three tools Claude calls.
+description: The /a2a commands you run, and the five tools Claude calls.
 order: 4
 section: Use
 ---
 
-You run one command, `/a2a`, to add, list and remove workers. Claude gets three tools, `workers`, `send` and `task`, and calls them itself when you ask it to use a worker.
+You run one command, `/a2a`, to add, list and remove workers. Claude gets five tools, `workers`, `send`, `task`, `add_worker` and `remove_worker`, and calls them itself when you ask it to use a worker.
 
 ## The /a2a command
 
@@ -15,7 +15,7 @@ Run `/a2a` with no arguments to open the workers pane and print the usage text. 
 | --- | --- |
 | `/a2a add <url> [alias] [token flag]` | Fetch the worker's Agent Card and register it. The alias defaults to a slug of the card name. Run it again to refresh a worker. |
 | `/a2a list` | Show registered workers, their skills, and running tasks with their age. |
-| `/a2a remove <alias>` | Forget a worker. |
+| `/a2a remove <alias>` | Forget a worker, its running tasks and its run-time history. |
 
 `<url>` can be the worker's base URL or the URL of its Agent Card. If it ends in `.json`, the mod fetches it as the card. Otherwise it fetches `/.well-known/agent-card.json` from that host.
 
@@ -30,10 +30,22 @@ You do not call these tools. Claude does, when you ask it to use a worker.
 | `workers` | Lists the registered workers and their skills. |
 | `send` | Sends a task to a worker. It returns the answer if the worker finishes in time, and a task id otherwise. |
 | `task` | Reads the full state and result of a task, or cancels it. |
+| `add_worker` | Registers a worker from a URL, after you approve a dialog. |
+| `remove_worker` | Forgets a worker, after you approve a dialog. |
 
 `send` takes `worker` (the alias) and `message`. Pass `taskId` to answer a worker that asked for input, or `contextId` to continue a conversation.
 
 `task` takes `worker` and `taskId`. Set `cancel` to true to cancel the task.
+
+### Adding and removing workers
+
+`add_worker` takes `url` and an optional `alias`. It fetches the Agent Card the same way `/a2a add` does, then asks you to approve. The dialog shows the worker's name, alias, endpoint origin, A2A version, up to three skills, and whether the card asks for authentication. Choose Add or Cancel. If the alias is already registered, the dialog says it will refresh that worker's card, and the worker keeps its token source and any trusted endpoint.
+
+`remove_worker` takes `alias`. It asks `Remove <alias>?` and says how many running tasks stop being tracked. An unknown alias gets an error that lists the known aliases, with no dialog.
+
+The dialog shows on every call, whatever the permission mode. If you choose Cancel or dismiss it, Claude gets `The user declined.` and nothing changes. In a run with no one to ask, such as `claude -p`, Claude gets `No one to approve this; ask the user to run /a2a add <url> themselves.`
+
+A worker Claude adds uses the `tokens` setting for its token, or none. The tools take no token, token command, token file or `--trust-endpoint`; for those, run `/a2a add` yourself. [Worker tokens](/tokens) explains why.
 
 ### Long results
 
