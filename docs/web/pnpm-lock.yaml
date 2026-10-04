@@ -23,9 +23,6 @@ importers:
       isbot:
         specifier: ^5.2.2
         version: 5.2.2
-      lucide-react:
-        specifier: ^1.47.0
-        version: 1.51.0(@types/react@19.3.0)(react@19.3.0)
       react:
         specifier: ^19.3.0
         version: 19.3.0
