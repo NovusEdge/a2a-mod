@@ -11,7 +11,7 @@ import { palette, type Palette } from './ui/color.ts'
 import { bandTree, nextRedraw } from './ui/band.tsx'
 import { resultCard, textOf, useCard, wakeCard, wakeNotes } from './ui/cards.tsx'
 import { paneTree, type PaneActions } from './ui/pane.tsx'
-import { parseSettings } from './ui/settings.ts'
+import { parseSettings, type UiSettings } from './ui/settings.ts'
 import { isLive } from './wire.ts'
 
 type Engine = EngineInterface
@@ -33,7 +33,7 @@ const NOT_COPIED: Record<Extract<UiCopyResult, { isCopied: false }>['reason'], s
   refused: 'another mod refused it',
 }
 
-function hostOf($: Engine, settingTokens: SettingTokens): Host {
+function hostOf($: Engine, settingTokens: SettingTokens, ui: UiSettings): Host {
   return {
     fetch: (url, init) => $.http.fetch(url, init),
     readWorkers: () => $.store.get('workers'),
@@ -51,6 +51,7 @@ function hostOf($: Engine, settingTokens: SettingTokens): Host {
     writeDurations: all => $.store.set('durations', all),
     status: text => $.ui.status(text),
     openPane: async () => {
+      if (ui.layout === 'minimal') return
       // Unasked, so it may stay unplaced; another mod's ui.open hook may also deny it.
       try { await $.ui.open(PANE) } catch {}
     },
@@ -192,14 +193,16 @@ export const register: Register = (on, options) => {
       ...TOOLS.map(t => $.tool.register(t)),
       $.command.register({ name: 'a2a', description: 'Manage A2A worker agents', argumentHint: 'add <url> [alias] [--token-setting | --token-cmd "<cmd>" | --token-file <path>] | list | remove <alias>' }),
     ])
-    await resume(hostOf($, settingTokens))
+    await resume(hostOf($, settingTokens, ui))
+    // The engine keeps a pane open across reloads, so one opened under another layout would stay.
+    if (ui.layout === 'minimal') try { await $.ui.close({ id: PANE.id }) } catch {}
     return next(e)
   })
 
   on('command.run', { command: 'a2a' }, async ($, e) => {
-    if (e.args.trim()) return { text: await runCommand(hostOf($, settingTokens), e.args) }
+    if (e.args.trim()) return { text: await runCommand(hostOf($, settingTokens, ui), e.args) }
     // The person asked, so the pane is placed at any width; another mod's ui.open hook may still deny it.
-    try { await $.ui.open(PANE) } catch {}
+    if (ui.layout !== 'minimal') try { await $.ui.open(PANE) } catch {}
     return { text: USAGE }
   })
 
@@ -212,8 +215,9 @@ export const register: Register = (on, options) => {
     return next({ ...e, context: [...(e.context ?? []), ...told] })
   })
 
-  on('ui.render', { component: 'ToolUse', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e) => {
-    const host = hostOf($, settingTokens)
+  on('ui.render', { component: 'ToolUse', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e, next) => {
+    if (ui.layout !== 'full') return next(e)
+    const host = hostOf($, settingTokens, ui)
     const input = (e.props.input ?? {}) as { worker?: unknown; message?: unknown }
     const alias = String(input.worker ?? '')
     const [workers, calls, pal] = await Promise.all([loadWorkers(host), host.readCalls(), paletteOf($)])
@@ -224,8 +228,9 @@ export const register: Register = (on, options) => {
     })
   })
 
-  on('ui.render', { component: 'ToolResult', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e) => {
-    const host = hostOf($, settingTokens)
+  on('ui.render', { component: 'ToolResult', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e, next) => {
+    if (ui.layout !== 'full') return next(e)
+    const host = hostOf($, settingTokens, ui)
     const [calls, done] = await Promise.all([host.readCalls(), read($, played)])
     const call = calls.value?.[e.props.tool_use_id]
     const playId = call?.taskId ?? e.props.tool_use_id
@@ -235,9 +240,9 @@ export const register: Register = (on, options) => {
   // The band is shared: another mod may draw there, and the first tree in the chain wins. So it
   // draws only while it has recent work, yields to surveys, and stacks next(e)'s tree under its own.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
+    if (ui.layout !== 'full' || e.props.hasSurvey) return next(e)
     const now = Date.now()
-    const rows = visible(await readRecent(hostOf($, settingTokens)), now)
+    const rows = visible(await readRecent(hostOf($, settingTokens, ui)), now)
     if (!rows.length) return next(e)
     // A row ages out, and the return packet rests, with no state change to redraw the band, so a timer does it.
     bandExpiry?.cancel()
@@ -250,10 +255,10 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'UserMessage', props: { origin: { kind: 'plugin' } } }, async ($, e, next) => {
     const o = e.props.origin
     // While expanded (ctrl+o) the engine draws the raw message.
-    if (e.props.isExpanded || o.kind !== 'plugin' || o.name !== 'a2a-mod') return next(e)
+    if (ui.layout !== 'full' || e.props.isExpanded || o.kind !== 'plugin' || o.name !== 'a2a-mod') return next(e)
     const notes = wakeNotes(e.props.text)
     if (!notes) return next(e)
-    const [list, done, pal] = await Promise.all([readRecent(hostOf($, settingTokens)), read($, played), paletteOf($)])
+    const [list, done, pal] = await Promise.all([readRecent(hostOf($, settingTokens, ui)), read($, played), paletteOf($)])
     return wakeCard($.ui.resolve(e), {
       surface: e.surface, anim: ui.animations, pal,
       // The state the message reported, not the row's state now: the card is a record of that moment.
@@ -268,7 +273,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Pane', requestId: 'a2a-workers' }, async ($, e) => {
-    const host = hostOf($, settingTokens)
+    const host = hostOf($, settingTokens, ui)
     const now = Date.now()
     const [workers, list, view, durations, pal] = await Promise.all([loadWorkers(host), readRecent(host), read($, paneView), host.readDurations(), paletteOf($)])
     const act: PaneActions = {
@@ -307,14 +312,14 @@ export const register: Register = (on, options) => {
   })
 
   on('tool.call', { tool: 'mcp__a2a-mod__workers' }, async $ => {
-    const all = Object.values(await loadWorkers(hostOf($, settingTokens)))
+    const all = Object.values(await loadWorkers(hostOf($, settingTokens, ui)))
     if (!all.length) return { result: 'No workers registered. Ask the user to run /a2a add <url>.' }
     return { result: all.map(w => `${w.alias}: ${w.name}. ${w.description}\n  skills: ${w.skills.map(s => `${s.id} (${s.description || s.name})`).join('; ') || 'none listed'}`).join('\n') }
   })
 
   on('tool.call', { tool: 'mcp__a2a-mod__send' }, async ($, e, next) => {
     const input = e as unknown as { worker?: string; message?: string; taskId?: string; contextId?: string }
-    const host = hostOf($, settingTokens)
+    const host = hostOf($, settingTokens, ui)
     const w = await workerOr(host, input.worker)
     if (typeof w === 'string') return { result: w }
     const startedAt = await host.now()
@@ -355,7 +360,7 @@ export const register: Register = (on, options) => {
 
   on('tool.call', { tool: 'mcp__a2a-mod__task' }, async ($, e, next) => {
     const input = e as unknown as { worker?: string; taskId?: string; cancel?: boolean }
-    const host = hostOf($, settingTokens)
+    const host = hostOf($, settingTokens, ui)
     const w = await workerOr(host, input.worker)
     if (typeof w === 'string') return { result: w }
     try {

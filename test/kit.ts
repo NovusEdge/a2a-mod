@@ -149,7 +149,7 @@ export const PANE_PROPS = (bodyColumns = 60): RenderPropsOf['Pane'] =>
  * Register it before any other hook on those events.
  */
 export function engineUi(on: On, opts: { copied?: boolean; theme?: string | Error } = {}) {
-  const seen = { toasts: [] as string[], callIds: [] as string[], copies: [] as string[], opened: [] as string[] }
+  const seen = { toasts: [] as string[], callIds: [] as string[], copies: [] as string[], opened: [] as string[], closed: [] as string[] }
   on('ui.render', async (_$, e) => ({ type: 'Text', props: {}, children: [`engine ${e.component}`] }) as RenderElement)
   on('config.list', async () => {
     if (opts.theme instanceof Error) throw opts.theme
@@ -165,6 +165,7 @@ export function engineUi(on: On, opts: { copied?: boolean; theme?: string | Erro
     return { value: opts.copied === false ? { isCopied: false, reason: 'no-clipboard' } : { isCopied: true } }
   })
   on('ui.open', async (_$, e) => { seen.opened.push(e.id); return { value: { isPlaced: true } } })
+  on('ui.close', async (_$, e) => { seen.closed.push(e.id); return { value: undefined } })
   return seen
 }
 
