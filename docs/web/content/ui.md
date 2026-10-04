@@ -22,11 +22,11 @@ The status line is where a running task shows. It stays visible while `/diff` is
 
 | State | Reads |
 | --- | --- |
-| One task running | `a2a ⠋ fake slow 20 build 0:12` |
-| Several running | `a2a ⠋ 2 running · 1 waiting` |
-| A worker asked a question | `a2a ? fake waiting: which colour` |
-| Several asked | `a2a ? 2 waiting` |
-| Just finished, nothing else live | `a2a ✓ fake done 0:20`, gone after 5 seconds |
+| One task running | `a2a-mod: ⠋ fake slow 20 build 0:12` |
+| Several running | `a2a-mod: ⠋ 2 running · 1 waiting` |
+| A worker asked a question | `a2a-mod: ? fake waiting: which colour` |
+| Several asked | `a2a-mod: ? 2 waiting` |
+| Just finished, nothing else live | `a2a-mod: ✓ fake done 0:20`, gone after 5 seconds |
 
 The task text is cut to 32 characters. The line updates once a second while a task runs, so the time ticks and the spinner steps; with animations off the spinner is a still `●`.
 
