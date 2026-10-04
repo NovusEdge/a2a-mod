@@ -35,6 +35,15 @@ test('a cross-origin endpoint gets the token only while trusted, and re-adding r
   expect(net.calls.length).toBe(again)
 })
 
+test('a worker error with an ANSI escape reaches the tool result without it', async ($, on) => {
+  mock.store(on)
+  fakeNet(on, { get: { jsonrpc: '2.0', id: 1, error: { code: -32000, message: '\u001b[31mboom\u001b[0m' } } })
+  await runA2a($, 'add http://worker.test fake')
+  const out = String((await $.tool.call({ tool: 'mcp__a2a-mod__task', worker: 'fake', taskId: 't1' })).result)
+  expect(out).toContain('boom')
+  expect(out).not.toContain('\u001b')
+})
+
 test('/a2a add with no alias slugs the card name', async ($, on) => {
   mock.store(on)
   fakeNet(on)
