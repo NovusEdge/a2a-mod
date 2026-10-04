@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-04
+
 ### Fixed
 
 - The message that wakes Claude shows as one short line (`a2a: fake task … completed`); the full result goes to Claude without filling the transcript. Claude Code never drew the wake card, so the old message showed as the engine's raw framed text.
