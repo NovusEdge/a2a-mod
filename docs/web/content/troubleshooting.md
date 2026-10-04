@@ -31,6 +31,18 @@ After a successful `add`, the mod can add a note:
 
 `/a2a list` can print `Warning: the tokens setting is not valid (it should be alias=token pairs separated by spaces), so no worker gets a token from it.` Fix the setting. Every word must be `alias=token`.
 
+## Claude adding or removing a worker
+
+Claude sees these in the tool result.
+
+| Message | What to do |
+| --- | --- |
+| `The user declined.` | You chose Cancel or dismissed the dialog. Nothing changed. Ask Claude again to retry. |
+| `No one to approve this; ask the user to run /a2a add <url> themselves.` | The run has no one to ask, such as `claude -p`. Run `/a2a add <url>` in an interactive session. |
+| `No worker named <alias>. Known workers: ...` | `remove_worker` got an unknown alias. Use one of the listed aliases. |
+
+If a worker needs a command token, a file token or `--trust-endpoint`, Claude cannot add it. Run `/a2a add` yourself.
+
 ## Getting a token
 
 | Message | What to do |
