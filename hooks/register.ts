@@ -8,7 +8,7 @@ import { changeRecent, isWaiting, noteCall, noteSent, noteState, readRecent, vis
 import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
-import { resultCard, textOf, useCard } from './ui/cards.tsx'
+import { resultCard, textOf, useCard, wakeCard, wakeNotes } from './ui/cards.tsx'
 import { hasClient, paneTree, type PaneActions } from './ui/pane.tsx'
 import { parseSettings } from './ui/settings.ts'
 import { isLive } from './wire.ts'
@@ -229,6 +229,20 @@ export const register: Register = (on, options) => {
     const call = calls.value?.[e.props.tool_use_id]
     const playId = call?.taskId ?? e.props.tool_use_id
     return resultCard($.ui.resolve(e), { surface: e.surface, anim: ui.animations, state: call?.state, isErrored: e.props.isErrored, text: textOf(e.props.output), playId, played: done.includes(playId) })
+  })
+
+  on('ui.render', { component: 'UserMessage', props: { origin: { kind: 'plugin' } } }, async ($, e, next) => {
+    const o = e.props.origin
+    // While expanded (ctrl+o) the engine draws the raw message.
+    if (!hasClient(e.surface) || e.props.isExpanded || o.kind !== 'plugin' || o.name !== 'a2a-mod') return next(e)
+    const notes = wakeNotes(e.props.text)
+    if (!notes) return next(e)
+    const [list, done, pal] = await Promise.all([readRecent(hostOf($, settingTokens)), read($, played), paletteOf($)])
+    return wakeCard($.ui.resolve(e), {
+      surface: e.surface, anim: ui.animations, pal,
+      // The state the message reported, not the row's state now: the card is a record of that moment.
+      notes: notes.map(n => ({ ...n, state: n.state ?? list.find(t => t.taskId === n.taskId)?.state, played: n.taskId !== undefined && done.includes(n.taskId) })),
+    })
   })
 
   on('ui.message', async ($, e) => {

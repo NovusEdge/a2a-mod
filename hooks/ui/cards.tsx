@@ -84,6 +84,51 @@ function resultBody(el: CardEls, d: ResultCard, clientKey: string): RenderElemen
     : <Text>{d.text}</Text>
 }
 
+export type WakeNote = { worker: string; taskId: string | undefined; state: RecentState | undefined; body: string }
+
+const WAKE_HEAD = /^A2A tasks? finished:\n\n/
+// A worker's result may hold its own `---` rule, so a split needs the next note's opening words.
+const NOTE_BREAK = /\n\n---\n\n(?=\S+ task \S+)/
+
+/** The notes of a wake prompt the tracker wrote, or undefined for any other text. */
+export function wakeNotes(text: string): WakeNote[] | undefined {
+  const head = WAKE_HEAD.exec(text)
+  if (!head) return undefined
+  return printable(text.slice(head[0].length)).split(NOTE_BREAK).map(note => {
+    const id = /^(\S+) task ([^\s:]+)/.exec(note)
+    const said = /^\S+ task \S+ is ([a-z-]+)/.exec(note)?.[1] as RecentState | undefined
+    const gap = note.indexOf('\n\n')
+    return {
+      worker: id?.[1] ?? note.split(' ')[0] ?? '',
+      taskId: id?.[2],
+      state: said && said in STATES ? said : undefined,
+      body: gap < 0 ? note : note.slice(gap + 2),
+    }
+  })
+}
+
+export type WakeCard = { surface: RenderSurface; anim: boolean; pal: Palette; notes: (WakeNote & { played: boolean })[] }
+
+/** One card per task the wake prompt reports: `⇠ alias  state`, then its result. */
+export function wakeCard(el: CardEls, d: WakeCard): RenderElement {
+  const { Box, Text } = el
+  return (
+    <Box flexDirection="column">
+      {d.notes.map(n => {
+        const b = badge(n.state, false)
+        // Without a task id nothing tells one wake's note from another's, so it never types in.
+        const playId = n.taskId ?? ''
+        return (
+          <Box flexDirection="column">
+            <Box><Text color="inactive">⇠ </Text>{cellsOf(el, gradient(fit(n.worker, 24), 0, d.pal))}<Text color={b.color}>{`  ${b.label}`}</Text></Box>
+            {resultBody(el, { surface: d.surface, anim: d.anim, state: n.state, isErrored: false, text: n.body, playId, played: n.played || !n.taskId }, `type:${playId}`)}
+          </Box>
+        )
+      })}
+    </Box>
+  )
+}
+
 /** A state badge, then the result; a completed result types itself in once. */
 export function resultCard(el: CardEls, d: ResultCard): RenderElement {
   const { Box, Text } = el
