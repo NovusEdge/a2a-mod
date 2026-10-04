@@ -2,11 +2,18 @@
 
 ## Setup
 
+Common commands are [just](https://just.systems) recipes. Run `just` to list them.
+
 ```sh
-pnpm install
-pnpm check   # type-check and `claude plugin validate --strict`
-pnpm test    # `claude plugin test` plus the end-to-end run against the fake worker
+just install   # mod and docs dependencies, from the lockfiles
+just check     # type-check and `claude plugin validate --strict`
+just test      # `claude plugin test`
+just e2e       # the end-to-end run against the official A2A SDK server
+just gates     # check, test and e2e: what CI runs on a PR
+just worker    # the fake worker
 ```
+
+The docs site has `just docs-dev`, `just docs-build` and `just docs-check`.
 
 You need Node 24, pnpm, and Claude Code 2.1.287 or later (the first release with mods). To run the mod in a live session from your clone:
 
@@ -34,6 +41,10 @@ The body says what changed and why. It does not narrate how the answer was found
 ## Gates
 
 CI runs `pnpm check` and `pnpm test` on every PR. A PR that changes what goes over the wire also runs the end-to-end test against the official `@a2a-js/sdk` server, so the client stays honest against the reference implementation and not only against its own mocks.
+
+## Releases
+
+Write the entry under `## [Unreleased]` in CHANGELOG.md as part of the change. A maintainer on a clean `main` runs `just release X.Y.Z`: it bumps `.claude-plugin/plugin.json` and `marketplace.json`, rolls the changelog, runs `just gates`, then commits, tags `vX.Y.Z` and pushes. The tag starts `release.yml`, which publishes the GitHub release with that changelog section as its notes. If the push fails, `just publish X.Y.Z` retries it.
 
 ## Design changes
 

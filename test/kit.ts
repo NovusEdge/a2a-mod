@@ -1,6 +1,12 @@
-import type { HttpInit, HttpResponse, ProcessRunResult } from 'claude-code'
-import type { Engine, TestBody } from 'claude-code/testing'
+import type { ConfigRow, HttpInit, HttpResponse, ProcessRunResult, RenderElement, RenderPropsOf, StateRead } from 'claude-code'
+import { expect, type Engine, type Plugin, type TestBody } from 'claude-code/testing'
+import type { Fetcher } from '../hooks/client.ts'
+import type { Host } from '../hooks/registry.ts'
+import type { CallInfo, RecentTask, TrackedTask } from '../types/index.d.ts'
 import { fixtures as f } from './fixtures.ts'
+
+// The test runtime has timers; the mod lib in tsconfig does not declare them.
+declare const setTimeout: (fn: () => void, ms: number) => unknown
 
 export type On = Parameters<TestBody>[1]
 
@@ -45,3 +51,189 @@ export const ran = (stdout: string, exitCode = 0): { value: ProcessRunResult } =
 
 export const runA2a = ($: Engine, args = '') =>
   $.command.run({ command: 'a2a', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
+
+/**
+ * Answers $.state from memory so a test can read what the mod wrote. A mounted drawing does not
+ * redraw on these writes, so UI tests leave $.state to the engine instead.
+ */
+export function memState(on: On) {
+  const held = new Map<string, StateRead<unknown>>()
+  on('state.get', async (_$, e) => ({ value: held.get(e.key) ?? { value: undefined, version: 0 } }))
+  on('state.set', async (_$, e) => {
+    const was = held.get(e.key) ?? { value: undefined, version: 0 }
+    if (e.ifVersion !== undefined && e.ifVersion !== was.version) return { value: { isSet: false, version: was.version } }
+    held.set(e.key, { value: e.value, version: was.version + 1 })
+    return { value: { isSet: true, version: was.version + 1 } }
+  })
+  return {
+    recent: () => (held.get('recent')?.value ?? []) as RecentTask[],
+    calls: () => (held.get('calls')?.value ?? {}) as Record<string, CallInfo>,
+    tasks: () => (held.get('tasks')?.value ?? []) as TrackedTask[],
+  }
+}
+
+function versioned<T>(initial: T) {
+  let held: StateRead<T> = { value: initial, version: 1 }
+  return {
+    read: async () => held,
+    write: async (value: T, ifVersion: number) => {
+      if (ifVersion !== held.version) return false
+      held = { value, version: held.version + 1 }
+      return true
+    },
+    get: () => held.value as T,
+  }
+}
+
+/** A Host with everything in memory, for the tracker and recent code below register.ts. */
+export function fakeHost(fetch: Fetcher, left: TrackedTask[] = [], opts: { now?: number; recent?: RecentTask[] } = {}) {
+  const tasks = versioned<TrackedTask[]>(left)
+  const recent = versioned<RecentTask[]>(opts.recent ?? [])
+  const calls = versioned<Record<string, CallInfo>>({})
+  let durations: Record<string, number[]> = {}
+  const wakes: string[] = []
+  const statuses: (string | undefined)[] = []
+  const clock = { now: opts.now ?? 0 }
+  const timer: { fn?: () => void } = {}
+  let opened = 0
+  const host: Host = {
+    fetch,
+    readWorkers: async () => STORE.workers,
+    writeWorkers: async () => {},
+    settingTokens: { map: { fake: 's3cret' }, invalid: false },
+    run: async () => { throw new Error('no commands in this test') },
+    readFile: async () => { throw new Error('no files in this test') },
+    readTasks: tasks.read,
+    writeTasks: tasks.write,
+    readRecent: recent.read,
+    writeRecent: recent.write,
+    readCalls: calls.read,
+    writeCalls: calls.write,
+    readDurations: async () => durations,
+    writeDurations: async all => { durations = all },
+    status: text => { statuses.push(text) },
+    openPane: async () => { opened++ },
+    now: async () => clock.now,
+    every: (_ms, fn) => { timer.fn = fn; return { cancel: () => { timer.fn = undefined } } },
+    sleep: () => new Promise(r => setTimeout(r, 0)),
+    wake: async text => { wakes.push(text) },
+  }
+  return {
+    host, wakes, timer, statuses, clock,
+    tasks: () => tasks.get(),
+    recent: () => recent.get(),
+    calls: () => calls.get(),
+    durations: () => durations,
+    opened: () => opened,
+  }
+}
+
+export const TOKEN = 's3cret'
+
+/** The fake worker's completed GetTask answer, with `text` as its result. */
+export function completedWith(text: string) {
+  const r = f.v1_get_completed.result
+  const artifact = r.artifacts[0]!
+  return { ...f.v1_get_completed, result: { ...r, artifacts: [{ ...artifact, parts: [{ ...artifact.parts[0]!, text }] }] } }
+}
+
+export const SURFACES = ['terminal', 'desktop'] as const
+
+export const PANE_PROPS = (bodyColumns = 60): RenderPropsOf['Pane'] =>
+  ({ title: 'A2A workers', isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} })
+
+/**
+ * Answers, beneath every plugin, what the engine answers in a session's UI: its own drawing
+ * (a Text naming the component), the theme, toasts, the clipboard and pane placement. Not
+ * focus: the 2.1.288 kit rejects $.ui.focus before any test hook sees it.
+ * Register it before any other hook on those events.
+ */
+export function engineUi(on: On, opts: { copied?: boolean; theme?: string | Error } = {}) {
+  const seen = { toasts: [] as string[], callIds: [] as string[], copies: [] as string[], opened: [] as string[], closed: [] as string[] }
+  on('ui.render', async (_$, e) => ({ type: 'Text', props: {}, children: [`engine ${e.component}`] }) as RenderElement)
+  on('config.list', async () => {
+    if (opts.theme instanceof Error) throw opts.theme
+    return { value: [{ key: 'theme', label: 'Theme', kind: 'choice', value: opts.theme ?? 'dark', options: ['dark', 'light'], provider: { kind: 'engine' } }] as unknown as ConfigRow[] }
+  })
+  on('ui.toast', async (_$, e) => {
+    if (e.text.startsWith('call-id ')) seen.callIds.push(e.text.slice('call-id '.length))
+    else seen.toasts.push(e.text)
+    return { value: undefined }
+  })
+  on('ui.copy', async (_$, e) => {
+    seen.copies.push(e.text)
+    return { value: opts.copied === false ? { isCopied: false, reason: 'no-clipboard' } : { isCopied: true } }
+  })
+  on('ui.open', async (_$, e) => { seen.opened.push(e.id); return { value: { isPlaced: true } } })
+  on('ui.close', async (_$, e) => { seen.closed.push(e.id); return { value: undefined } })
+  return seen
+}
+
+/** Every prompt submitted, with the context lines the hooks above attached. */
+export function promptLog(on: On) {
+  const seen: { text: string; context: readonly string[]; origin: string }[] = []
+  on('prompt.submit', async (_$, e) => {
+    seen.push({ text: e.text, context: e.context ?? [], origin: e.origin.kind })
+    return { text: e.text }
+  })
+  return seen
+}
+
+type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
+
+export function clientKeys(tree: unknown): string[] {
+  const n = tree as Node
+  if (!n || typeof n !== 'object') return []
+  const own = n.type === 'Client' && typeof n.props?.key === 'string' ? [n.props.key] : []
+  return [...own, ...(n.children ?? []).flatMap(clientKeys)]
+}
+
+/** Cells across a tree as the terminal lays it out: a Button is `[ label ]`, a Client its `width`. */
+export function widthOf(tree: unknown): number {
+  if (typeof tree === 'string') return Math.max(...tree.split('\n').map(l => [...l].length))
+  const n = tree as Node
+  if (!n || typeof n !== 'object') return 0
+  const kids = n.children ?? []
+  switch (n.type) {
+    case 'Text': return kids.reduce<number>((a, c) => a + widthOf(c), 0)
+    case 'Button': return [...String(n.props?.label ?? '')].length + 4
+    case 'Client': return Number(n.props?.width ?? 0)
+    case 'Box': return n.props?.flexDirection === 'column' ? Math.max(0, ...kids.map(widthOf)) : kids.reduce<number>((a, c) => a + widthOf(c), 0)
+    default: return 0
+  }
+}
+
+type Drawn = { drawn: (scope?: { in: string }) => Promise<RenderElement> }
+
+/** The tree and what each of its Clients drew. */
+export async function drawnAll(ui: Drawn): Promise<RenderElement[]> {
+  const tree = await ui.drawn()
+  return [tree, ...(await Promise.all(clientKeys(tree).map(key => ui.drawn({ in: key }))))]
+}
+
+export async function expectNoToken(ui: Drawn): Promise<void> {
+  for (const tree of await drawnAll(ui)) expect(JSON.stringify(tree)).not.toContain(TOKEN)
+}
+
+export const BAND_PROPS = (over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] =>
+  ({ hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 80, scroll: { offset: 0, bodyRows: 12 }, view: {}, ...over })
+
+/**
+ * Loaded outside a2a-mod (prepend tier), so it sees every tool call first and reports its
+ * tool_use_id as a toast that engineUi collects: the test $ never shows the id.
+ */
+export const CALL_IDS: Plugin = {
+  name: 'call-ids',
+  tier: 'prepend',
+  register(on) {
+    on('tool.call', async ($, e, next) => {
+      $.ui.toast(`call-id ${e.tool_use_id}`)
+      return next(e)
+    })
+  },
+}
+
+export const has =(tree: unknown, type: string): boolean => {
+  const n = tree as Node
+  return !!n && typeof n === 'object' && (n.type === type || (n.children ?? []).some(c => has(c, type)))
+}

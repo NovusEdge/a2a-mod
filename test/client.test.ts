@@ -77,7 +77,13 @@ test('a reply with no result gives an A2AError', async () => {
   expect(err).toBeInstanceOf(A2AError)
 })
 
-test('JSON-RPC errors and worker text are scrubbed', async () => {
+test('a worker error message loses control characters', async () => {
+  const { fetcher } = net(() => ({ json: { jsonrpc: '2.0', id: 1, error: { code: -32000, message: '\u001b[31mboom\u001b[0m\u0007 gone' } } }))
+  const err = await getTask(fetcher, target(), 'x').catch(e => e)
+  expect(err.message).toBe('worker fake returned error -32000: boom gone')
+})
+
+test('JSON-RPC errors and worker text are scrubbed',async () => {
   const { fetcher } = net(() => ({ json: { jsonrpc: '2.0', id: 1, error: { code: -32001, message: 'no task; auth was s3cret' } } }))
   const err = await getTask(fetcher, target({ token: 's3cret' }), 'x').catch(e => e)
   expect(String(err.message)).toContain('no task')

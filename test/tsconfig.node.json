@@ -5,5 +5,5 @@
     "strict": true, "noEmit": true, "skipLibCheck": true,
     "allowImportingTsExtensions": true, "erasableSyntaxOnly": true
   },
-  "include": ["fake-worker.ts", "capture.ts", "e2e.ts", "fixtures.ts", "../hooks/wire.ts", "../hooks/client.ts", "../types/index.d.ts"]
+  "include": ["fake-worker.ts", "capture.ts", "e2e.ts", "fixtures.ts", "../hooks/wire.ts", "../hooks/client.ts", "../scripts/roll-changelog.ts","../types/index.d.ts"]
 }

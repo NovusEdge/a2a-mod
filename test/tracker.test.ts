@@ -1,17 +1,10 @@
 import { test, expect, mock, type Engine, type MockClock } from 'claude-code/testing'
-import type { StateRead } from 'claude-code'
-import { fakeNet, runA2a, STORE, WITH_TOKEN, type On } from './kit.ts'
+import { fakeHost, fakeNet, runA2a, STORE, WITH_TOKEN, type On } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 import type { Fetcher } from '../hooks/client.ts'
-import type { Host } from '../hooks/registry.ts'
 import { MAX_FAILURES, resume, tick, track } from '../hooks/tracker.ts'
-import type { TrackedTask } from '../types/index.d.ts'
-
-// The test runtime has timers; the mod lib in tsconfig does not declare them.
-declare const setTimeout: (fn: () => void, ms: number) => unknown
 
 const leaky = JSON.parse(JSON.stringify(f.v1_get_completed).replace('echo: hi', 'echo: s3cret'))
-const TASKS = { plugin: 'a2a-mod', key: 'tasks' } as const
 
 function prompts(on: On) {
   const seen: string[] = []
@@ -115,32 +108,7 @@ test('session.start while a task is tracked keeps a single poller', WITH_TOKEN, 
   expect(woke.length).toBe(1)
 })
 
-// The engine's $.state never reaches a test's own hooks, so reload is shown against a fake Host:
-// fresh module state (no ticker) plus tasks left in state.
-function fakeHost(fetch: Fetcher, left: TrackedTask[] = []) {
-  let tasks: StateRead<TrackedTask[]> = { value: left, version: 1 }
-  const wakes: string[] = []
-  const timer: { fn?: () => void } = {}
-  const host: Host = {
-    fetch,
-    readWorkers: async () => STORE.workers,
-    writeWorkers: async () => {},
-    settingTokens: { map: { fake: 's3cret' }, invalid: false },
-    run: async () => { throw new Error('no commands in this test') },
-    readFile: async () => { throw new Error('no files in this test') },
-    readTasks: async () => tasks,
-    writeTasks: async (value, ifVersion) => {
-      if (ifVersion !== tasks.version) return false
-      tasks = { value, version: tasks.version + 1 }
-      return true
-    },
-    status: () => {},
-    every: (_ms, fn) => { timer.fn = fn; return { cancel: () => { timer.fn = undefined } } },
-    sleep: () => new Promise(r => setTimeout(r, 0)),
-    wake: async text => { wakes.push(text) },
-  }
-  return { host, wakes, timer, tasks: () => tasks.value ?? [] }
-}
+// A reload is shown against a fake Host: fresh module state (no ticker) plus tasks left in state.
 
 test('resume restarts polling for tasks a reload left in state', async () => {
   const fetch: Fetcher = async () => ({ status: 200, ok: true, text: JSON.stringify(f.v1_get_completed) })

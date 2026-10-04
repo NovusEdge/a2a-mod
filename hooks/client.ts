@@ -1,4 +1,5 @@
 import type { Outcome, Target, TaskOutcome } from '../types/index.d.ts'
+import { printable } from './format.ts'
 import { cardUrlFor, parseCard, parseSend, parseTask, rpcBody, type Op, type OpParams } from './wire.ts'
 
 export type Fetcher = (url: string, init: { method: string; headers: Record<string, string>; body?: string }) => Promise<{ status: number; ok: boolean; text: string }>
@@ -47,7 +48,8 @@ async function rpc(fetch: Fetcher, t: Target, op: Op, params: OpParams): Promise
   }
   if (!res.ok) throw new A2AError(`worker ${t.alias} answered HTTP ${res.status}`)
   const body = parseJson(res.text, `worker ${t.alias}`)
-  if (body?.error) throw new A2AError(scrub(`worker ${t.alias} returned error ${body.error.code}: ${body.error.message}`, t.token))
+  // The message is the worker's text and reaches toasts, tool results and the pane unfiltered.
+  if (body?.error) throw new A2AError(printable(scrub(`worker ${t.alias} returned error ${body.error.code}: ${body.error.message}`, t.token)))
   if (typeof body?.result !== 'object' || body.result === null) throw new A2AError(`worker ${t.alias} returned no result`)
   return body.result
 }

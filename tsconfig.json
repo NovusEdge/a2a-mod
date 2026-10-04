@@ -7,5 +7,5 @@
     "allowImportingTsExtensions": true,
     "jsx": "react", "jsxFactory": "h", "jsxFragmentFactory": "Fragment"
   },
-  "include": ["types/**/*.d.ts", "hooks/**/*.ts", "test/**/*.test.ts", "test/kit.ts", "test/fixtures.ts"]
+  "include": ["types/**/*.d.ts", "hooks/**/*.ts", "hooks/**/*.tsx", "test/**/*.test.ts", "test/kit.ts", "test/fixtures.ts"]
 }

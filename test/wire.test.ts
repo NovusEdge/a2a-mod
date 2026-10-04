@@ -22,6 +22,18 @@ describe('cards', () => {
     expect(c.version).toBe('0.3')
     expect(c.endpoint).toBe('http://worker.test/rpc')
   })
+  test('the provider organization is kept when the card names one', () => {
+    expect(parseCard({ ...f.card_v1, provider: { organization: 'Acme', url: 'https://acme.test' } }, 'http://worker.test/c.json').organization).toBe('Acme')
+    expect(parseCard(f.card_v1, 'http://worker.test/c.json').organization).toBeUndefined()
+  })
+
+  test('the organization loses control characters and is cut to 60 characters', () => {
+    const org = (organization: string) => parseCard({ ...f.card_v1, provider: { organization } }, 'http://worker.test/c.json').organization
+    expect(org('\u001b[31mAcme\u001b[0m')).toBe('Acme')
+    expect(org('x'.repeat(200))?.length).toBe(60)
+    expect(org('\u001b[0m')).toBeUndefined()
+  })
+
   test('a card with no JSON-RPC interface is refused', () => {
     expect(() => parseCard({ name: 'G', supportedInterfaces: [{ url: 'x:1', protocolBinding: 'GRPC', protocolVersion: '1.0' }] }, 'http://w.test/c.json')).toThrow('JSON-RPC')
   })
