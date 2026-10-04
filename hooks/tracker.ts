@@ -1,5 +1,5 @@
 import type { Timer } from 'claude-code'
-import type { RecentState, TrackedTask } from '../types/index.d.ts'
+import type { RecentState, TaskState, TrackedTask } from '../types/index.d.ts'
 import { getTask } from './client.ts'
 import { describeOutcome } from './format.ts'
 import { isOpen, isRunning, noteState, readRecent } from './recent.ts'
@@ -48,9 +48,21 @@ export async function track(host: Host, t: Omit<TrackedTask, 'failures'>): Promi
   await update(host, tasks => [...tasks.filter(x => x.taskId !== t.taskId), { ...t, failures: 0 }])
 }
 
-// A reload drops the module state, and with it both tickers, while tasks are still live.
+// A reload drops the module state, and with it both tickers, while tasks are still live. A reload
+// between `send` writing its recent row and tracking the task (or an error there that is not an
+// A2AError) leaves a running row nothing polls, which would keep the status line spinning.
 export async function resume(host: Host): Promise<void> {
-  if ((await runningTasks(host)).length) await update(host, tasks => tasks)
+  const tracked = new Set((await runningTasks(host)).map(t => t.taskId))
+  const orphans = (await readRecent(host)).filter(t => isRunning(t.state) && !tracked.has(t.taskId))
+  if (orphans.length) {
+    const workers = await loadWorkers(host)
+    for (const t of orphans) {
+      if (!workers[t.worker]) { await noteState(host, t.worker, t.taskId, 'removed', 'worker removed'); continue }
+      await track(host, { worker: t.worker, taskId: t.taskId, contextId: t.contextId, state: t.state as TaskState, startedAt: t.startedAt })
+      tracked.add(t.taskId)
+    }
+  }
+  if (tracked.size) await update(host, tasks => tasks)
   else await showStatus(host)
 }
 

@@ -124,6 +124,28 @@ test('resume restarts polling for tasks a reload left in state', async () => {
   expect(timer.fn).toBeUndefined()
 })
 
+const orphan = (taskId: string, worker = 'fake') =>
+  ({ worker, taskId, text: 'slow 60 build', state: 'working' as const, startedAt: 0, changedAt: 0 })
+
+test('resume tracks a running row that no tracked task backs, so a reload mid-send cannot leave the status line spinning', async () => {
+  const fetch: Fetcher = async () => ({ status: 200, ok: true, text: JSON.stringify(f.v1_get_completed) })
+  const { host, wakes, tasks, recent, timer } = fakeHost(fetch, [], { recent: [orphan('lost')] })
+  await resume(host)
+  expect(tasks().map(t => t.taskId)).toEqual(['lost'])
+  expect(timer.fn).toBeDefined()
+  await tick(host)
+  expect(wakes.length).toBe(1)
+  expect(recent()[0]?.state).toBe('completed')
+})
+
+test('resume marks a running row removed when its worker is gone', async () => {
+  const { host, tasks, recent, statuses } = fakeHost(async () => { throw new Error('no network') }, [], { recent: [orphan('lost', 'gone')] })
+  await resume(host)
+  expect(tasks()).toEqual([])
+  expect(recent()[0]?.state).toBe('removed')
+  expect(statuses.at(-1)).not.toContain('running')
+})
+
 test('a hung worker times out per poll, does not hold up other tasks, and is dropped after six', async () => {
   const fetch: Fetcher = (_url, init) => JSON.parse(init.body ?? '{}').params?.id === 'hung'
     ? new Promise(() => {})
