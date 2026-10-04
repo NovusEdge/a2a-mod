@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - `add_worker` refuses to refresh a worker whose card or endpoint is on a different origin from the stored one, and to give a new worker an alias that already has a token in the `tokens` setting. Both need the user's own `/a2a add`. Before, a refresh could point a worker with a stored token at another host.
+- `add_worker` refreshes an existing alias only from the exact card URL it was stored with. Before, another path on the same host passed the origin check, so on a shared host one tenant could take over another's alias.
 - `add_worker` never cuts the endpoint origin in the dialog and refuses one over 100 characters. The dialog's Authentication line says whether a token would really be sent.
 - Aliases such as `constructor` or `toString` no longer match members of `Object.prototype` in the worker and token lookups; `__proto__` is refused as an alias.
 - `add_worker` tells Claude only "Could not read an Agent Card at that URL." when the fetch fails, so it cannot probe addresses through the HTTP status. `/a2a add` keeps the detail.

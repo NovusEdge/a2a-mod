@@ -248,7 +248,7 @@ export const register: Register = (on, options) => {
     const [workers, calls, pal] = await Promise.all([loadWorkers(host), host.readCalls(), paletteOf($)])
     const now = await nowOf($)
     return useCard($.ui.resolve(e), {
-      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal, now, alias, worker: workers[alias],
+      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal, now, alias, worker: own(workers, alias),
       message: String(input.message ?? ''), isRunning: e.props.isRunning, startedAt: calls.value?.[e.props.tool_use_id]?.startedAt ?? now,
     })
   })

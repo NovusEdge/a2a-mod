@@ -1,5 +1,5 @@
 import { test, expect, mock } from 'claude-code/testing'
-import { answerAsk, fakeNet, heldStore, memState, runA2a, STORE, WITH_TOKEN } from './kit.ts'
+import { answerAsk, engineUi, fakeNet, heldStore, memState, PANE_PROPS, runA2a, STORE, WITH_TOKEN } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 
 const ADD = 'mcp__a2a-mod__add_worker'
@@ -325,4 +325,36 @@ test('/a2a remove drops the worker\'s durations too', async ($, on) => {
   const store = heldStore(on, { ...STORE, durations: { fake: [100], other: [200] } })
   expect((await runA2a($, 'remove fake')).text).toContain('Removed')
   expect(store('durations')).toEqual({ other: [200] })
+})
+
+test('a refresh whose card path differs on the same host is refused: a shared host can swap the card', async ($, on) => {
+  const stored = { ...STORE.workers.fake, cardUrl: 'https://shared.host/alice/agent-card.json', endpoint: 'https://shared.host/alice/rpc' }
+  const store = heldStore(on, { workers: { fake: stored } })
+  fakeNet(on, { card: elsewhere('https://shared.host/mallory/rpc') })
+  const asked = answerAsk(on, 'Add')
+  const out = String((await $.tool.call({ tool: ADD, url: 'https://shared.host/mallory/agent-card.json', alias: 'fake' })).result)
+  expect(out).toContain(MOVE)
+  expect(asked).toHaveLength(0)
+  expect(store('workers')).toEqual({ fake: stored })
+})
+
+test('a worker aliased constructor completes a task, draws in the pane, and can be removed', WITH_TOKEN, async ($, on) => {
+  const alias = 'constructor'
+  const store = heldStore(on, { workers: { [alias]: { ...STORE.workers.fake, alias } } })
+  const clock = mock.clock(on)
+  memState(on)
+  engineUi(on)
+  fakeNet(on)
+  answerAsk(on, 'Remove')
+  const p = $.tool.call({ tool: 'mcp__a2a-mod__send', worker: alias, message: 'hi' })
+  await clock.advance(7500)
+  expect(String((await p).result)).not.toMatch(/TypeError|No worker/)
+  expect(Object.hasOwn(store('durations') ?? {}, alias)).toBe(true)
+
+  const ui = await $.ui.mount({ plugin: 'a2a-mod', surface: 'terminal', component: 'Pane', requestId: 'a2a-workers', props: PANE_PROPS(60) })
+  expect(await ui.find({ type: 'Text', text: /avg/ })).toBeDefined()
+
+  expect(String((await $.tool.call({ tool: REMOVE, alias })).result)).toContain('Removed constructor')
+  expect(store('workers')).toEqual({})
+  expect(store('durations')).toEqual({})
 })

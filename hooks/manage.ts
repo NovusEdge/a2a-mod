@@ -54,7 +54,8 @@ export async function addWorkerTool(host: Host, confirm: Confirm, input: { url?:
     const move = `the user must run /a2a add ${line(url, 200)} ${line(fetched.alias, 40)} themselves`
     if (kept) {
       // The kept token source and trusted origin would follow the endpoint to a host the user never saw.
-      if (originOf(kept.cardUrl) !== originOf(fetched.cardUrl) || originOf(kept.endpoint) !== originOf(fetched.endpoint)) {
+      // Origins alone are not enough: on a shared host another tenant's path has the same origin.
+      if (kept.cardUrl !== fetched.cardUrl || originOf(kept.endpoint) !== originOf(fetched.endpoint)) {
         return `a2a: ${line(fetched.alias, 40)} is already registered at another address. Moving a worker to another host is not allowed here; ${move}.`
       }
     } else if (own(host.settingTokens.map, fetched.alias) !== undefined) {
