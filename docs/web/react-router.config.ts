@@ -3,5 +3,5 @@ import { pathOf, slugs } from './pages.ts'
 
 export default {
   ssr: false,
-  prerender: slugs().map(pathOf),
+  prerender: [...slugs().map(pathOf), '/api/search'],
 } satisfies Config

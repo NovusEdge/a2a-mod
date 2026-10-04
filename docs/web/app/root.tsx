@@ -1,5 +1,8 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router'
+import { RootProvider } from 'fumadocs-ui/provider/react-router'
 import type { Route } from './+types/root'
+import StaticSearchDialog from './components/search'
+import { Footer } from './lib/layout.shared'
 import './app.css'
 
 export const links: Route.LinksFunction = () => [
@@ -12,21 +15,17 @@ export const links: Route.LinksFunction = () => [
   { rel: 'stylesheet', href: 'https://api.fontshare.com/v2/css?f[]=amulya@400,500,700,900&display=swap' },
 ]
 
-// Sets the theme before first paint. Storage can throw (private windows, blocked site data).
-const THEME_SCRIPT = `(function(){var t;try{t=localStorage.getItem('a2a-theme')}catch(e){}if(t!=='dark'&&t!=='light')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';document.documentElement.dataset.theme=t})()`
-
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <Meta />
         <Links />
       </head>
-      <body>
-        {children}
+      <body className="flex min-h-screen flex-col">
+        <RootProvider search={{ SearchDialog: StaticSearchDialog }}>{children}</RootProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -35,5 +34,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />
+  return (
+    <>
+      <div className="a2a-main">
+        <Outlet />
+      </div>
+      <Footer />
+    </>
+  )
 }

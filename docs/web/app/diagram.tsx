@@ -105,7 +105,7 @@ function Tall() {
 
 export function Diagram() {
   return (
-    <figure className="figure not-prose" data-pagefind-ignore>
+    <figure className="figure not-prose">
       <Wide />
       <Tall />
     </figure>

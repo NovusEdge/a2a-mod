@@ -6,7 +6,7 @@ default:
 [group('dev')]
 install:
     pnpm install --frozen-lockfile
-    pnpm -C docs/web install --frozen-lockfile --ignore-workspace
+    pnpm -C docs/web install --frozen-lockfile
 
 # validate the mod and type-check it
 [group('dev')]
