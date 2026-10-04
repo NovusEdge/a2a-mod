@@ -4,11 +4,11 @@ import type { PaneView, RecentState, RecentTask, SentReply, Worker } from '../ty
 import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
 import { describeOutcome, FULL_MAX } from './format.ts'
-import { changeRecent, isWaiting, noteCall, noteSent, noteState, readRecent, visible } from './recent.ts'
+import { changeRecent, isOpen, isWaiting, noteCall, noteSent, noteState, readRecent, visible } from './recent.ts'
 import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
-import { bandTree, nextRedraw } from './ui/band.tsx'
+import { bandRows, bandTree, nextRedraw } from './ui/band.tsx'
 import { resultCard, textOf, useCard, wakeCard, wakeNotes } from './ui/cards.tsx'
 import { paneTree, type PaneActions } from './ui/pane.tsx'
 import { parseSettings, type UiSettings } from './ui/settings.ts'
@@ -20,7 +20,12 @@ const TASKS = { plugin: 'a2a-mod', key: 'tasks' } as const
 const RECENT = { plugin: 'a2a-mod', key: 'recent' } as const
 const CALLS = { plugin: 'a2a-mod', key: 'calls' } as const
 const PANE = { id: 'a2a-workers', title: 'A2A workers' } as const
-const paneView = atom({ plugin: 'a2a-mod', key: 'pane' } as const, { open: [], replying: [] } as PaneView)
+// Wanted sizes: a slim dock beside /diff, a short block when inline.
+const PANE_COLUMNS = 32
+const PANE_ROWS = 12
+// -1, not 0: a clock that starts at 0 can end a task at 0, and Clear done at that moment still has to hide it.
+const EMPTY_VIEW: PaneView = { open: [], replying: [], collapsed: [], all: [], clearedAt: -1 }
+const paneView = atom({ plugin: 'a2a-mod', key: 'pane' } as const, EMPTY_VIEW)
 const replies = atom({ plugin: 'a2a-mod', key: 'replies' } as const, [] as SentReply[])
 const played = atom({ plugin: 'a2a-mod', key: 'played' } as const, [] as string[])
 const PLAYED_MAX = 200
@@ -31,6 +36,12 @@ const NOT_COPIED: Record<Extract<UiCopyResult, { isCopied: false }>['reason'], s
   'no-surface': 'nothing is drawing',
   'no-clipboard': 'this surface has no clipboard Claude Code can write to',
   refused: 'another mod refused it',
+}
+
+// The status line and the band age by this clock, so a test's mock clock moves them. Another mod's
+// clock.now hook may refuse; the wall clock is the fallback.
+async function nowOf($: Engine): Promise<number> {
+  try { return await $.clock.now() } catch { return Date.now() }
 }
 
 function hostOf($: Engine, settingTokens: SettingTokens, ui: UiSettings): Host {
@@ -50,13 +61,8 @@ function hostOf($: Engine, settingTokens: SettingTokens, ui: UiSettings): Host {
     readDurations: async () => ((await $.store.get('durations')) as Record<string, number[]> | undefined) ?? {},
     writeDurations: all => $.store.set('durations', all),
     status: text => $.ui.status(text),
-    openPane: async () => {
-      if (ui.layout === 'minimal') return
-      // Unasked, so it may stay unplaced; another mod's ui.open hook may also deny it.
-      try { await $.ui.open(PANE) } catch {}
-    },
-    // Wall time, as the backend has always stamped startedAt; $.clock.now is answered only under mock.clock in tests.
-    now: async () => Date.now(),
+    anim: ui.animations,
+    now: () => nowOf($),
     every: (ms, fn) => $.clock.every(ms, fn),
     sleep: ms => $.clock.sleep(ms),
     wake: async text => { await $.prompt.submit({ text }) },
@@ -132,8 +138,10 @@ async function paletteOf($: Engine): Promise<Palette> {
 }
 
 const without = (ids: string[], id: string) => ids.filter(x => x !== id)
+const toggled = (ids: string[] | undefined, id: string) => ((ids ?? []).includes(id) ? without(ids ?? [], id) : [...(ids ?? []), id])
 
-const cardWidth = (columns: number | undefined) => Math.max(20, Math.min(100, (columns ?? 80) - 4))
+// The card is indented two columns, so this leaves two spare on the right.
+const cardWidth = (columns: number | undefined) => Math.max(1, Math.min(100, (columns ?? 80) - 4))
 
 async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<void> {
   const w = (await loadWorkers(host))[t.worker]
@@ -201,8 +209,9 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'a2a' }, async ($, e) => {
     if (e.args.trim()) return { text: await runCommand(hostOf($, settingTokens, ui), e.args) }
-    // The person asked, so the pane is placed at any width; another mod's ui.open hook may still deny it.
-    if (ui.layout !== 'minimal') try { await $.ui.open(PANE) } catch {}
+    // Only the person opens the pane, so a running task never switches the dock away from /diff.
+    // Asked, it is placed at any width; another mod's ui.open hook may still deny it.
+    if (ui.layout !== 'minimal') try { await $.ui.open({ ...PANE, columns: PANE_COLUMNS, rows: PANE_ROWS }) } catch {}
     return { text: USAGE }
   })
 
@@ -221,7 +230,7 @@ export const register: Register = (on, options) => {
     const input = (e.props.input ?? {}) as { worker?: unknown; message?: unknown }
     const alias = String(input.worker ?? '')
     const [workers, calls, pal] = await Promise.all([loadWorkers(host), host.readCalls(), paletteOf($)])
-    const now = Date.now()
+    const now = await nowOf($)
     return useCard($.ui.resolve(e), {
       surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal, now, alias, worker: workers[alias],
       message: String(input.message ?? ''), isRunning: e.props.isRunning, startedAt: calls.value?.[e.props.tool_use_id]?.startedAt ?? now,
@@ -231,20 +240,28 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'ToolResult', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e, next) => {
     if (ui.layout !== 'full') return next(e)
     const host = hostOf($, settingTokens, ui)
-    const [calls, done] = await Promise.all([host.readCalls(), read($, played)])
+    const [calls, done, list] = await Promise.all([host.readCalls(), read($, played), readRecent(host)])
     const call = calls.value?.[e.props.tool_use_id]
     const playId = call?.taskId ?? e.props.tool_use_id
-    return resultCard($.ui.resolve(e), { surface: e.surface, anim: ui.animations, state: call?.state, isErrored: e.props.isErrored, text: textOf(e.props.output), playId, played: done.includes(playId) })
+    // The output is what Claude was told at the time; the task may have moved on since.
+    const now = call?.taskId ? list.find(t => t.taskId === call.taskId) : undefined
+    const moved = now !== undefined && now.state !== call?.state
+    return resultCard($.ui.resolve(e), {
+      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations,
+      state: moved ? now.state : call?.state, isErrored: e.props.isErrored, text: moved ? (now.result ?? '') : textOf(e.props.output),
+      playId, played: done.includes(playId), taskId: call?.taskId,
+    })
   })
 
   // The band is shared: another mod may draw there, and the first tree in the chain wins. So it
-  // draws only while it has recent work, yields to surveys, and stacks next(e)'s tree under its own.
+  // draws only while a task runs or waits (and for the return packet after), yields to surveys,
+  // and stacks next(e)'s tree under its own.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (ui.layout !== 'full' || e.props.hasSurvey) return next(e)
-    const now = Date.now()
-    const rows = visible(await readRecent(hostOf($, settingTokens, ui)), now)
+    const now = await nowOf($)
+    const rows = bandRows(await readRecent(hostOf($, settingTokens, ui)), now)
     if (!rows.length) return next(e)
-    // A row ages out, and the return packet rests, with no state change to redraw the band, so a timer does it.
+    // The return packet rests with no state change to redraw the band, so a timer does it.
     bandExpiry?.cancel()
     const due = nextRedraw(rows, now, true)
     bandExpiry = due === undefined ? undefined : $.clock.after(due, () => $.ui.invalidate('ui.render'))
@@ -260,7 +277,7 @@ export const register: Register = (on, options) => {
     if (!notes) return next(e)
     const [list, done, pal] = await Promise.all([readRecent(hostOf($, settingTokens, ui)), read($, played), paletteOf($)])
     return wakeCard($.ui.resolve(e), {
-      surface: e.surface, anim: ui.animations, pal,
+      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal,
       // The state the message reported, not the row's state now: the card is a record of that moment.
       notes: notes.map(n => ({ ...n, state: n.state ?? list.find(t => t.taskId === n.taskId)?.state, played: n.taskId !== undefined && done.includes(n.taskId) })),
     })
@@ -274,12 +291,18 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: 'a2a-workers' }, async ($, e) => {
     const host = hostOf($, settingTokens, ui)
-    const now = Date.now()
-    const [workers, list, view, durations, pal] = await Promise.all([loadWorkers(host), readRecent(host), read($, paneView), host.readDurations(), paletteOf($)])
+    const now = await nowOf($)
+    const [workers, list, stored, durations, pal] = await Promise.all([loadWorkers(host), readRecent(host), read($, paneView), host.readDurations(), paletteOf($)])
+    // State saved by an earlier version lacks the newer fields.
+    const view: PaneView = { ...EMPTY_VIEW, ...stored }
     const act: PaneActions = {
       cancel: t => cancelFromPane($, host, t),
       // One row open at a time keeps the pane under the engine's 100,000-character tree limit.
       toggleOpen: t => update($, paneView, v => ({ ...v, open: v.open.includes(t.taskId) ? [] : [t.taskId] })),
+      toggleBox: alias => update($, paneView, v => ({ ...v, collapsed: toggled(v.collapsed, alias) })),
+      toggleAll: alias => update($, paneView, v => ({ ...v, all: toggled(v.all, alias) })),
+      // Hides what ended by now from the pane only; the recent list keeps it for the cards.
+      clearDone: async () => { const at = await nowOf($); await update($, paneView, v => ({ ...v, clearedAt: at })) },
       copy: async (t, press) => {
         const copied = await $.ui.copy({ text: t.result ?? '', surface: press.surface })
         if (!copied.isCopied) $.ui.toast(`a2a: nothing was copied: ${NOT_COPIED[copied.reason]}.`)
@@ -303,12 +326,13 @@ export const register: Register = (on, options) => {
       },
     }
     const shown = Object.values(workers).sort((a, b) => a.addedAt - b.addedAt)
-    const rows = visible(list, now)
+    const aging = visible(list, now)
     // A row ages out with no state change to redraw the pane, so a timer does it.
     paneExpiry?.cancel()
-    const due = nextRedraw(rows, now, false)
+    const due = nextRedraw(aging, now, false)
     paneExpiry = due === undefined ? undefined : $.clock.after(due, () => $.ui.invalidate('ui.render'))
-    return paneTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, now, anim: ui.animations, pal, workers: shown, rows, durations, view, drafts }, act)
+    const rows = aging.filter(t => isOpen(t) || (t.endedAt ?? t.startedAt) > view.clearedAt)
+    return paneTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, height: e.props.scroll.bodyRows, now, anim: ui.animations, pal, workers: shown, rows, durations, view, drafts }, act)
   })
 
   on('tool.call', { tool: 'mcp__a2a-mod__workers' }, async $ => {

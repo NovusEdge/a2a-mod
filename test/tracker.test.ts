@@ -67,7 +67,7 @@ test('a worker that stops answering is dropped after six failures', WITH_TOKEN, 
   expect(woke[0]).toContain('lost contact')
 })
 
-test('status line shows running tasks and clears at zero', WITH_TOKEN, async ($, on) => {
+test('status line shows the running task, then its end for five seconds, then clears', WITH_TOKEN, async ($, on) => {
   mock.store(on, STORE)
   const clock = mock.clock(on)
   const statuses: (string | undefined)[] = []
@@ -76,8 +76,10 @@ test('status line shows running tasks and clears at zero', WITH_TOKEN, async ($,
   let done = false
   fakeNet(on, { send: f.v1_send_slow, get: () => (done ? f.v1_get_completed : f.v1_get_working) })
   await sendSlow($, clock)
-  expect(statuses.at(-1)).toBe('a2a: 1 running')
+  expect(statuses.at(-1)).toMatch(/^a2a . fake slow 60 build 0:\d\d$/)
   done = true
+  await clock.advance(5000)
+  expect(statuses.at(-1)).toMatch(/^a2a ✓ fake done 0:\d\d$/)
   await clock.advance(5000)
   expect(statuses.at(-1)).toBeUndefined()
 })
@@ -120,6 +122,28 @@ test('resume restarts polling for tasks a reload left in state', async () => {
   expect(wakes.length).toBe(1)
   expect(tasks().length).toBe(0)
   expect(timer.fn).toBeUndefined()
+})
+
+const orphan = (taskId: string, worker = 'fake') =>
+  ({ worker, taskId, text: 'slow 60 build', state: 'working' as const, startedAt: 0, changedAt: 0 })
+
+test('resume tracks a running row that no tracked task backs, so a reload mid-send cannot leave the status line spinning', async () => {
+  const fetch: Fetcher = async () => ({ status: 200, ok: true, text: JSON.stringify(f.v1_get_completed) })
+  const { host, wakes, tasks, recent, timer } = fakeHost(fetch, [], { recent: [orphan('lost')] })
+  await resume(host)
+  expect(tasks().map(t => t.taskId)).toEqual(['lost'])
+  expect(timer.fn).toBeDefined()
+  await tick(host)
+  expect(wakes.length).toBe(1)
+  expect(recent()[0]?.state).toBe('completed')
+})
+
+test('resume marks a running row removed when its worker is gone', async () => {
+  const { host, tasks, recent, statuses } = fakeHost(async () => { throw new Error('no network') }, [], { recent: [orphan('lost', 'gone')] })
+  await resume(host)
+  expect(tasks()).toEqual([])
+  expect(recent()[0]?.state).toBe('removed')
+  expect(statuses.at(-1)).not.toContain('running')
 })
 
 test('a hung worker times out per poll, does not hold up other tasks, and is dropped after six', async () => {

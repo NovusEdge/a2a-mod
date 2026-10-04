@@ -1,9 +1,10 @@
-import type { ConfigRow, HttpInit, HttpResponse, ProcessRunResult, RenderElement, RenderPropsOf, StateRead } from 'claude-code'
+import type { ConfigRow, HttpInit, PaneOpenArgs, HttpResponse, ProcessRunResult, RenderElement, RenderPropsOf, StateRead } from 'claude-code'
 import { expect, type Engine, type Plugin, type TestBody } from 'claude-code/testing'
 import type { Fetcher } from '../hooks/client.ts'
 import type { Host } from '../hooks/registry.ts'
 import type { CallInfo, RecentTask, TrackedTask } from '../types/index.d.ts'
 import { fixtures as f } from './fixtures.ts'
+import { STATUS_MS } from '../hooks/ui/status.ts'
 
 // The test runtime has timers; the mod lib in tsconfig does not declare them.
 declare const setTimeout: (fn: () => void, ms: number) => unknown
@@ -72,6 +73,14 @@ export function memState(on: On) {
   }
 }
 
+/**
+ * Answers reads of the `recent` list with `rows`, so a pane test can show dozens of rows without
+ * sending dozens of tasks. Writes still reach the engine; reads of other keys pass through.
+ */
+export function seedRecent(on: On, rows: readonly RecentTask[]) {
+  on('state.get', async (_$, e, next) => (e.key === 'recent' ? { value: { value: [...rows], version: 1 } } : next(e)))
+}
+
 function versioned<T>(initial: T) {
   let held: StateRead<T> = { value: initial, version: 1 }
   return {
@@ -95,7 +104,7 @@ export function fakeHost(fetch: Fetcher, left: TrackedTask[] = [], opts: { now?:
   const statuses: (string | undefined)[] = []
   const clock = { now: opts.now ?? 0 }
   const timer: { fn?: () => void } = {}
-  let opened = 0
+  const statusTimer: { fn?: () => unknown } = {}
   const host: Host = {
     fetch,
     readWorkers: async () => STORE.workers,
@@ -112,19 +121,22 @@ export function fakeHost(fetch: Fetcher, left: TrackedTask[] = [], opts: { now?:
     readDurations: async () => durations,
     writeDurations: async all => { durations = all },
     status: text => { statuses.push(text) },
-    openPane: async () => { opened++ },
+    anim: true,
     now: async () => clock.now,
-    every: (_ms, fn) => { timer.fn = fn; return { cancel: () => { timer.fn = undefined } } },
+    every: (ms, fn) => {
+      const slot = ms === STATUS_MS ? statusTimer : timer
+      slot.fn = fn
+      return { cancel: () => { slot.fn = undefined } }
+    },
     sleep: () => new Promise(r => setTimeout(r, 0)),
     wake: async text => { wakes.push(text) },
   }
   return {
-    host, wakes, timer, statuses, clock,
+    host, wakes, timer, statusTimer, statuses, clock,
     tasks: () => tasks.get(),
     recent: () => recent.get(),
     calls: () => calls.get(),
     durations: () => durations,
-    opened: () => opened,
   }
 }
 
@@ -139,8 +151,25 @@ export function completedWith(text: string) {
 
 export const SURFACES = ['terminal', 'desktop'] as const
 
-export const PANE_PROPS = (bodyColumns = 60): RenderPropsOf['Pane'] =>
-  ({ title: 'A2A workers', isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} })
+export const PANE_PROPS = (bodyColumns = 60, bodyRows = 40): RenderPropsOf['Pane'] =>
+  ({ title: 'A2A workers', isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows }, view: {} })
+
+/** The text under a node, as drawn left to right. */
+export const textUnder = (n: unknown): string =>
+  typeof n === 'string' ? n
+    : (n as Node | undefined)?.type === 'Button' ? String((n as Node).props?.label ?? '')
+      : ((n as Node | undefined)?.children ?? []).map(textUnder).join('')
+
+/** The innermost Box whose text holds `needle`: one drawn line, or a block when the text spans lines. */
+export function boxWith(n: unknown, needle: string): Node | undefined {
+  if (!n || typeof n !== 'object') return undefined
+  const node = n as Node
+  for (const c of node.children ?? []) {
+    const hit = boxWith(c, needle)
+    if (hit) return hit
+  }
+  return node.type === 'Box' && textUnder(node).includes(needle) ? node : undefined
+}
 
 /**
  * Answers, beneath every plugin, what the engine answers in a session's UI: its own drawing
@@ -149,7 +178,7 @@ export const PANE_PROPS = (bodyColumns = 60): RenderPropsOf['Pane'] =>
  * Register it before any other hook on those events.
  */
 export function engineUi(on: On, opts: { copied?: boolean; theme?: string | Error } = {}) {
-  const seen = { toasts: [] as string[], callIds: [] as string[], copies: [] as string[], opened: [] as string[], closed: [] as string[] }
+  const seen = { toasts: [] as string[], callIds: [] as string[], copies: [] as string[], opened: [] as string[], args: [] as PaneOpenArgs[], closed: [] as string[] }
   on('ui.render', async (_$, e) => ({ type: 'Text', props: {}, children: [`engine ${e.component}`] }) as RenderElement)
   on('config.list', async () => {
     if (opts.theme instanceof Error) throw opts.theme
@@ -164,7 +193,7 @@ export function engineUi(on: On, opts: { copied?: boolean; theme?: string | Erro
     seen.copies.push(e.text)
     return { value: opts.copied === false ? { isCopied: false, reason: 'no-clipboard' } : { isCopied: true } }
   })
-  on('ui.open', async (_$, e) => { seen.opened.push(e.id); return { value: { isPlaced: true } } })
+  on('ui.open', async (_$, e) => { seen.opened.push(e.id); seen.args.push(e); return { value: { isPlaced: true } } })
   on('ui.close', async (_$, e) => { seen.closed.push(e.id); return { value: undefined } })
   return seen
 }
@@ -179,7 +208,7 @@ export function promptLog(on: On) {
   return seen
 }
 
-type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
+export type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
 
 export function clientKeys(tree: unknown): string[] {
   const n = tree as Node
@@ -196,9 +225,12 @@ export function widthOf(tree: unknown): number {
   const kids = n.children ?? []
   switch (n.type) {
     case 'Text': return kids.reduce<number>((a, c) => a + widthOf(c), 0)
-    case 'Button': return [...String(n.props?.label ?? '')].length + 4
+    case 'Button': return [...String(n.props?.label ?? '')].length + (n.props?.plain ? 0 : 4)
     case 'Client': return Number(n.props?.width ?? 0)
-    case 'Box': return n.props?.flexDirection === 'column' ? Math.max(0, ...kids.map(widthOf)) : kids.reduce<number>((a, c) => a + widthOf(c), 0)
+    case 'Box': {
+      const inner = n.props?.flexDirection === 'column' ? Math.max(0, ...kids.map(widthOf)) : kids.reduce<number>((a, c) => a + widthOf(c), 0)
+      return inner + (n.props?.borderStyle ? 2 : 0) + 2 * Number(n.props?.paddingX ?? 0) + Number(n.props?.marginLeft ?? 0)
+    }
     default: return 0
   }
 }

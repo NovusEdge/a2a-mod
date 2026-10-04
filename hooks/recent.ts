@@ -86,11 +86,13 @@ export async function noteState(host: Host, worker: string, taskId: string, stat
   const now = await host.now()
   let ran: number | undefined
   await changeRecent(host, taskId, held => {
-    const { canceling, progress, ...was } = held ?? { worker, taskId, text: '', state, startedAt: now, changedAt: now }
+    const { canceling, progress, message, ...was } = held ?? { worker, taskId, text: '', state, startedAt: now, changedAt: now }
     const base = { ...was, changedAt: was.state === state ? was.changedAt : now }
     if (isRunning(state)) {
       const pct = progressOf(text)
-      return { ...base, state, ...(canceling ? { canceling } : {}), ...(pct === undefined ? {} : { progress: pct }) }
+      // 50 rows of full messages would push the pane past the tree limit, as with `text`.
+      const said = printable(text).trim().slice(0, TEXT_MAX)
+      return { ...base, state, ...(canceling ? { canceling } : {}), ...(pct === undefined ? {} : { progress: pct }), ...(said ? { message: said } : {}) }
     }
     if (isWaiting(state)) return { ...base, state, result: cut(text) }
     ran = now - base.startedAt

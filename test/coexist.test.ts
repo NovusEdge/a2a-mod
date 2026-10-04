@@ -91,6 +91,7 @@ test("a pane reply's context line and the other mod's context both reach Claude"
   fakeNet(on, { send: () => (replied ? resumed : f.v1_send_ask), get: () => (replied ? resumedGet : f.v1_get_input_required) })
   await send($, clock, 'ask colour')
   const ui = await $.ui.mount({ plugin: 'a2a-mod', surface: 'terminal', component: 'Pane', requestId: 'a2a-workers', props: PANE_PROPS() })
+  await ui.press({ key: `open:${ASK_ID}` })
   await ui.press({ key: `reply:${ASK_ID}` })
   replied = true
   await ui.input({ key: `input:${ASK_ID}`, text: 'blue' })

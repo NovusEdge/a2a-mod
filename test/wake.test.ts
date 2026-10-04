@@ -1,6 +1,6 @@
 import { test, expect, mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { PromptOrigin, RenderSurface } from 'claude-code'
-import { engineUi, expectNoToken, fakeNet, has, promptLog, STORE, SURFACES, WITH_TOKEN } from './kit.ts'
+import { boxWith, drawnAll, engineUi, expectNoToken, fakeNet, has, promptLog, STORE, SURFACES, widthOf, WITH_TOKEN, type Node } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 import { wakeNotes } from '../hooks/ui/cards.tsx'
 
@@ -52,7 +52,7 @@ test('a wake message for a task this session never listed still draws from its o
   engineUi(on)
   const text = 'A2A task finished:\n\nfake task old-1 is failed.\n\n\u001b[31mboom\u001b[0m'
   const ui = await mountWake($, 'terminal', text)
-  expect(await ui.find({ type: 'Text', text: '  failed' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '✕ failed' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'boom' })).toBeDefined()
 })
 
@@ -84,11 +84,28 @@ for (const surface of SURFACES) {
     const text = await wakeText($, on, clock)
     const ui = await mountWake($, surface, text)
     expect(await ui.find({ type: 'Text', text: '⇠ ' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: '  completed' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '✓ completed' })).toBeDefined()
     expect(await ui.find({ type: 'Client', key: `type:${SLOW_ID}` })).toBeDefined()
     await ui.advance(1600)
     expect(await ui.find({ type: 'Text', text: 'echo: [token]' })).toBeDefined()
     await expectNoToken(ui)
+  })
+
+  test(`the wake card is a rounded box with the badge at the right edge, and fits 80 and 120 columns on ${surface}`, WITH_TOKEN, async ($, on) => {
+    mock.store(on, STORE)
+    const clock = mock.clock(on)
+    engineUi(on)
+    const text = await wakeText($, on, clock)
+    for (const columns of [80, 120]) {
+      const ui = await $.ui.mount({ plugin: 'a2a-mod', surface, component: 'UserMessage', props: { text, origin: { kind: 'plugin', name: 'a2a-mod' }, isExpanded: false }, viewport: { columns, rows: 24 } })
+      const root = (await ui.drawn()) as Node
+      const card = (root.children ?? [])[0] as Node
+      expect(card).toMatchObject({ props: { borderStyle: 'round', borderColor: 'inactive', paddingX: 1, marginLeft: 2 } })
+      const cw = Math.min(100, columns - 4) - 4
+      expect(widthOf(boxWith(root, '⇠ '))).toBe(cw)
+      for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(columns)
+      await ui.unmount()
+    }
   })
 
   test(`ctrl+o, the person's own prompt and other plugins' messages reach the engine on ${surface}`, WITH_TOKEN, async ($, on) => {

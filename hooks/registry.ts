@@ -26,8 +26,8 @@ export type Host = {
   readDurations(): Promise<Record<string, number[]>>
   writeDurations(all: Record<string, number[]>): Promise<void>
   status(text: string | undefined): void
-  /** Opens the workers pane unasked; does nothing in the minimal layout. Never rejects. */
-  openPane(): Promise<void>
+  /** The `animations` setting: a still glyph on the status line when off. */
+  anim: boolean
   now(): Promise<number>
   every(ms: number, fn: () => void): Timer
   sleep(ms: number): Promise<void>

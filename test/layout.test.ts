@@ -30,8 +30,8 @@ for (const layout of ['full', 'pane', 'minimal'] as const) {
     await clock.advance(7500)
     const result = (await p).result
     const id = seen.callIds.at(-1)!
-    expect(statuses.at(-1)).toBe('a2a: 1 running')
-    expect(seen.opened.includes('a2a-workers')).toBe(want.pane)
+    expect(statuses.at(-1)).toMatch(/^a2a . fake slow 60 build 0:\d\d$/)
+    expect(seen.opened).toEqual([])
 
     const engine = (component: string) => ({ type: 'Text', text: `engine ${component}` })
     const use = await $.ui.mount({ plugin: 'a2a-mod', surface: 'terminal', component: 'ToolUse', props: { tool_use_id: id, tool: SEND, input: { worker: 'fake', message: 'slow 60 build' }, isRunning: false, isErrored: false, isInterrupted: false } })
@@ -46,7 +46,6 @@ for (const layout of ['full', 'pane', 'minimal'] as const) {
     const wake = await $.ui.mount({ plugin: 'a2a-mod', surface: 'terminal', component: 'UserMessage', props: { text: woke.at(-1)!.text, origin: { kind: 'plugin', name: 'a2a-mod' }, isExpanded: false } })
     expect(!!(await wake.find(engine('UserMessage')))).toBe(!want.cards)
 
-    seen.opened.length = 0
     await runA2a($)
     expect(seen.opened).toEqual(want.pane ? ['a2a-workers'] : [])
   })
