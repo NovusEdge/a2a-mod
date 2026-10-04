@@ -42,10 +42,10 @@ The first prompt gets an inline reply that lists the worker and its skills.
 The second is a task that takes 20 seconds. Claude gets a task id back after about 7 seconds and carries on. The status line shows the task while it runs:
 
 ```text title="status line"
-a2a ⠋ fake slow 20 build 0:12
+a2a-mod: ⠋ fake slow 20 build 0:12
 ```
 
-When the worker finishes, the line reads `a2a ✓ fake done 0:20` for 5 seconds, and the mod wakes Claude with the result.
+When the worker finishes, the line reads `a2a-mod: ✓ fake done 0:20` for 5 seconds, and the mod wakes Claude with the result.
 
 ## What the fake worker understands
 

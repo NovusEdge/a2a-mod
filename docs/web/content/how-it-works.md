@@ -29,11 +29,11 @@ While a task is live, the status line shows it. The text depends on what is goin
 
 | State | Status line |
 | --- | --- |
-| One task running | `a2a ⠋ fake slow 20 build 0:12`: the worker, the task text cut to 32 characters, and the time since it started. |
-| Several running | `a2a ⠋ 2 running · 1 waiting` |
-| A task waiting for your input | `a2a ? fake waiting: Which colour?` |
-| Several waiting, none running | `a2a ? 2 waiting` |
-| A task just ended, nothing else live | `a2a ✓ fake done 0:20` for 5 seconds. A failed task shows `✕ failed`, a canceled one `⊘ canceled`. |
+| One task running | `a2a-mod: ⠋ fake slow 20 build 0:12`: the worker, the task text cut to 32 characters, and the time since it started. |
+| Several running | `a2a-mod: ⠋ 2 running · 1 waiting` |
+| A task waiting for your input | `a2a-mod: ? fake waiting: Which colour?` |
+| Several waiting, none running | `a2a-mod: ? 2 waiting` |
+| A task just ended, nothing else live | `a2a-mod: ✓ fake done 0:20` for 5 seconds. A failed task shows `✕ failed`, a canceled one `⊘ canceled`. |
 
 The line updates once a second while anything runs. With animations off, the spinner is a still `●`.
 

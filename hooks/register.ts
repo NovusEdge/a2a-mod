@@ -271,8 +271,9 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'UserMessage', props: { origin: { kind: 'plugin' } } }, async ($, e, next) => {
     const o = e.props.origin
-    // While expanded (ctrl+o) the engine draws the raw message.
-    if (ui.layout !== 'full' || e.props.isExpanded || o.kind !== 'plugin' || o.name !== 'a2a-mod') return next(e)
+    // isExpanded is no gate: the engine reports it true for a short message under its speaker label,
+    // which is every wake, so gating on it kept the card from ever drawing.
+    if (ui.layout !== 'full' || o.kind !== 'plugin' || o.name !== 'a2a-mod') return next(e)
     const notes = wakeNotes(e.props.text)
     if (!notes) return next(e)
     const [list, done, pal] = await Promise.all([readRecent(hostOf($, settingTokens, ui)), read($, played), paletteOf($)])

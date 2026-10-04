@@ -51,7 +51,7 @@ The task takes 20 seconds. Claude gets a task id after about 7 and moves on. Whe
 
 ## What you'll see
 
-- **A status line** with the live task: `a2a ⠋ fake slow 20 build 0:12`. It stays visible next to `/diff`.
+- **A status line** with the live task: `a2a-mod: ⠋ fake slow 20 build 0:12`. It stays visible next to `/diff`.
 - **A band above your prompt** while a task runs, showing the hand-off from Claude to the worker.
 - **A slim `⇄ a2a` pane** that opens with `/a2a`, as a tab next to `/diff`. It shows each worker, its tasks, and buttons to copy a result, reply to a question or cancel.
 - **Boxed cards** in the transcript for each `send` and each result.

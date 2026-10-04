@@ -13,6 +13,7 @@ const ended = (t: RecentTask) => t.endedAt !== undefined
 
 /**
  * The status line, plain text because the slot takes none; undefined clears it.
+ * Claude Code prefixes the mod's name (`a2a-mod: `), so the text does not repeat it.
  * Worker text goes through `fit`, which strips control characters.
  */
 export function statusText(rows: readonly RecentTask[], now: number, anim: boolean): string | undefined {
@@ -22,18 +23,18 @@ export function statusText(rows: readonly RecentTask[], now: number, anim: boole
   const glyph = anim ? spinner(Math.floor(now / STATUS_MS)) : '●'
   if (running.length === 1) {
     const t = running[0]!
-    return `a2a ${glyph} ${fit(t.worker, 16)} ${fit(t.text, TEXT_MAX)} ${clock(now - t.startedAt)}${more}`
+    return `${glyph} ${fit(t.worker, 16)} ${fit(t.text, TEXT_MAX)} ${clock(now - t.startedAt)}${more}`
   }
-  if (running.length) return `a2a ${glyph} ${running.length} running${more}`
+  if (running.length) return `${glyph} ${running.length} running${more}`
   if (waiting.length === 1) {
     const t = waiting[0]!
-    return `a2a ? ${fit(t.worker, 16)} waiting: ${fit(t.result ?? '', TEXT_MAX)}`
+    return `? ${fit(t.worker, 16)} waiting: ${fit(t.result ?? '', TEXT_MAX)}`
   }
-  if (waiting.length) return `a2a ? ${waiting.length} waiting`
+  if (waiting.length) return `? ${waiting.length} waiting`
   const last = rows.filter(t => ended(t) && now - t.endedAt! < DONE_MS).sort((a, b) => b.endedAt! - a.endedAt!)[0]
   if (!last) return undefined
   const look = STATES[last.state]
   // The same words as the result card's badge: a person sees "failed", not the protocol's "rejected".
   const what = last.state === 'completed' ? 'done' : last.state === 'rejected' ? 'failed' : look.label
-  return `a2a ${look.glyph} ${fit(last.worker, 16)} ${what} ${clock(last.endedAt! - last.startedAt)}`
+  return `${look.glyph} ${fit(last.worker, 16)} ${what} ${clock(last.endedAt! - last.startedAt)}`
 }

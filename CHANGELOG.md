@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A task's wake message draws as the boxed wake card again. It was skipped whenever Claude Code reported the row as expanded, and when the engine wrapped the text in its "plugin sent a message" framing.
+- The "needs input" result card shows the worker's question and `task <id> · reply in the a2a pane`, not the summary line written for Claude. Completed and failed cards likewise show only the result or the error.
+- The status line no longer starts with `a2a`: Claude Code already prefixes the mod's name, so it read `a2a-mod: a2a ⠋ …`.
+- In the workers pane, `Clear done` sits on its own right-aligned row under the rule instead of running into the worker count.
+
 ## [0.2.0] - 2026-10-04
 
 ### Changed
