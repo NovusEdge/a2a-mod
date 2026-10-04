@@ -3,7 +3,11 @@ import type { MDXComponents } from 'mdx/types'
 import { Diagram } from '../diagram'
 
 export function getMDXComponents(components?: MDXComponents) {
-  return { ...defaultMdxComponents, Diagram, ...components } satisfies MDXComponents
+  return {
+    ...defaultMdxComponents,
+    Diagram,
+    ...components,
+  } satisfies MDXComponents
 }
 
 export const useMDXComponents = getMDXComponents

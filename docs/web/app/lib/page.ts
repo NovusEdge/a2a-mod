@@ -1,4 +1,5 @@
 import { docs, source } from './source'
+import { getPageMarkdownUrl } from './shared'
 
 // Prerendering also requests `<path>.data`, and `/_.data` for the index route.
 export async function loadPage(request: Request) {
@@ -7,7 +8,11 @@ export async function loadPage(request: Request) {
   const page = source.getPage(slug === 'index' ? [] : [slug])
   if (!page) throw new Response('Not found', { status: 404 })
   await docs.getPage(page.path)?.preload()
-  return { path: page.path, pageTree: await source.serializePageTree(source.getPageTree()) }
+  return {
+    path: page.path,
+    markdownUrl: getPageMarkdownUrl(page),
+    pageTree: await source.serializePageTree(source.getPageTree()),
+  }
 }
 
 export function pageAt(path: string) {

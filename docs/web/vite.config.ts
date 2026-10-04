@@ -4,5 +4,6 @@ import { fumadocsMdx } from 'fumadocs-mdx/vite'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  plugins: [tailwindcss(), fumadocsMdx(), reactRouter()],
+  plugins: [fumadocsMdx(), tailwindcss(), reactRouter()],
+  resolve: { tsconfigPaths: true },
 })

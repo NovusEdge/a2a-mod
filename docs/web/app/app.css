@@ -1,91 +1,21 @@
 @import 'tailwindcss';
-@import 'fumadocs-ui/css/lib/default-colors.css';
+@import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 
-/* khimani.dev identity over Fumadocs' tokens. Light: bone page, #e8e4da cards, charcoal text.
-   The light accent is darker than the site gold because #916210 reaches only 4.2:1 on the card colour. */
-@theme {
-  --font-sans: 'Satoshi', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --font-display: 'Amulya', 'Satoshi', system-ui, sans-serif;
-
-  --color-fd-background: #f5f2eb;
-  --color-fd-foreground: #1a1a1a;
-  --color-fd-muted: #e8e4da;
-  --color-fd-muted-foreground: #605e57;
-  --color-fd-popover: #f5f2eb;
-  --color-fd-popover-foreground: #1a1a1a;
-  --color-fd-card: #e8e4da;
-  --color-fd-card-foreground: #1a1a1a;
-  --color-fd-border: rgba(26, 26, 26, 0.14);
-  --color-fd-primary: #855a0e;
-  --color-fd-primary-foreground: #f5f2eb;
-  --color-fd-secondary: #e8e4da;
-  --color-fd-secondary-foreground: #1a1a1a;
-  --color-fd-accent: rgba(133, 90, 14, 0.12);
-  --color-fd-accent-foreground: #1a1a1a;
-  --color-fd-ring: #855a0e;
+html {
+  scrollbar-gutter: stable;
 }
 
-.dark {
-  --color-fd-background: #1a1a1a;
-  --color-fd-foreground: #f5f2eb;
-  --color-fd-muted: #242424;
-  --color-fd-muted-foreground: #aaa79f;
-  --color-fd-popover: #242424;
-  --color-fd-popover-foreground: #f5f2eb;
-  --color-fd-card: #242424;
-  --color-fd-card-foreground: #f5f2eb;
-  --color-fd-border: rgba(245, 242, 235, 0.12);
-  --color-fd-primary: #d4a03c;
-  --color-fd-primary-foreground: #1a1a1a;
-  --color-fd-secondary: #242424;
-  --color-fd-secondary-foreground: #f5f2eb;
-  --color-fd-accent: rgba(212, 160, 60, 0.14);
-  --color-fd-accent-foreground: #f5f2eb;
-  --color-fd-ring: #d4a03c;
-}
-.dark #nd-sidebar {
-  --color-fd-muted: #242424;
-  --color-fd-secondary: #242424;
-  --color-fd-muted-foreground: #aaa79f;
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
 }
 
-body { font-size: 17px; -webkit-font-smoothing: antialiased; }
-.a2a-main { flex: 1 1 auto; display: flex; flex-direction: column; }
-::selection { background: color-mix(in oklab, var(--color-fd-primary) 35%, transparent); }
-
-h1, h2 { font-family: var(--font-display); letter-spacing: -0.02em; text-wrap: balance; }
-h1 { font-weight: 800; letter-spacing: -0.04em; }
-h2 { font-weight: 700; }
-.a2a-wordmark { font-family: var(--font-display); font-weight: 900; font-size: 1.25rem; letter-spacing: -0.02em; }
-
-/* Prose links: fd-link style is subtle; keep them gold and underlined for contrast on text. */
-.prose a:not([data-card]):not(.fd-card) { color: var(--color-fd-primary); text-decoration-line: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; font-weight: 500; }
-.prose :not(pre) > code { font-family: var(--font-mono); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-
-.a2a-edit { display: inline-block; margin-top: 3rem; font-size: 0.875rem; color: var(--color-fd-muted-foreground); }
-.a2a-edit:hover { color: var(--color-fd-foreground); }
-
-.a2a-foot {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.5rem;
-  border-top: 1px solid var(--color-fd-border); padding: 2rem max(1rem, calc((100vw - 1280px) / 2 + 1.5rem));
-  font-size: 0.875rem; color: var(--color-fd-muted-foreground);
-}
-.a2a-foot code { margin-left: 1rem; border: 1px solid var(--color-fd-border); border-radius: 4px; padding: 0.125rem 0.375rem; font-family: var(--font-mono); font-size: 0.75rem; }
-.a2a-foot nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
-.a2a-foot a:hover { color: var(--color-fd-foreground); }
-
-.a2a-home { width: 100%; max-width: 760px; margin: 0 auto; padding: 3rem 1rem 1rem; }
-.a2a-hero h1 { margin: 0 0 0.25em; font-size: clamp(3rem, 9vw, 5rem); line-height: 1; }
-.a2a-hero .tag { margin: 0 0 1.75rem; max-width: 42ch; font-size: clamp(1.15rem, 2.4vw, 1.4rem); line-height: 1.4; text-wrap: balance; }
-.a2a-hero .req { margin: 0 0 1.5rem; font-size: 0.9rem; color: var(--color-fd-muted-foreground); }
-.a2a-demo { display: block; width: 100%; height: auto; margin: 0 0 2rem; border: 1px solid var(--color-fd-border); border-radius: 8px; }
-
+/* The task-flow diagram uses Fumadocs' own tokens so it follows the theme. */
 .diagram { display: block; width: 100%; height: auto; margin: 0; color: var(--color-fd-foreground); font-family: var(--font-mono); }
 .diagram.wide { display: none; }
 @media (min-width: 640px) { .diagram.tall { display: none; } .diagram.wide { display: block; } }
-.figure { margin: 2rem 0; padding: 1.25rem 1rem; border: 1px solid var(--color-fd-border); border-radius: 8px; background: var(--color-fd-card); }
+.figure { margin: 2rem 0; padding: 1.25rem 1rem; border: 1px solid var(--color-fd-border); border-radius: 0.75rem; background: var(--color-fd-card); }
 .dg-lane { stroke: var(--color-fd-muted-foreground); stroke-width: 1; stroke-dasharray: 2 5; opacity: 0.7; }
 .dg-line { stroke: currentColor; stroke-width: 1.5; fill: none; }
 .dg-acc { stroke: var(--color-fd-primary); stroke-width: 2; fill: none; }
@@ -96,12 +26,3 @@ h2 { font-weight: 700; }
 .dg-a { fill: var(--color-fd-primary); font-size: 12px; font-weight: 500; }
 .dg-h { fill: var(--color-fd-foreground); font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
 .dg-halo { paint-order: stroke; stroke: var(--color-fd-card); stroke-width: 5px; stroke-linejoin: round; }
-
-.a2a-cards { display: grid; gap: 0.75rem; margin: 0 0 2.5rem; }
-@media (min-width: 640px) { .a2a-cards { grid-template-columns: repeat(3, 1fr); } }
-.a2a-cards a { display: block; padding: 1rem 1.125rem; border: 1px solid var(--color-fd-border); border-radius: 8px; background: var(--color-fd-card); transition: border-color 0.15s, transform 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
-.a2a-cards a:hover { border-color: var(--color-fd-primary); transform: translateY(-2px); }
-.a2a-cards b { display: block; font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
-.a2a-cards span { display: block; margin-top: 0.25rem; font-size: 0.9rem; line-height: 1.45; color: var(--color-fd-muted-foreground); }
-.a2a-cards a:hover b { color: var(--color-fd-primary); }
-@media (prefers-reduced-motion: reduce) { .a2a-cards a { transition: none; } }

@@ -8,5 +8,10 @@ export default [
       : route(pathOf(slug), 'routes/docs.tsx', { id: `doc-${slug}` }),
   ),
   route('api/search', 'routes/search.ts'),
+
+  route('llms.txt', 'llms/index.ts'),
+  route('llms-full.txt', 'llms/full.ts'),
+  route('llms.mdx/*', 'llms/mdx.ts'),
+
   route('*', 'routes/not-found.tsx'),
 ] satisfies RouteConfig

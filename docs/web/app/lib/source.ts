@@ -1,9 +1,16 @@
-import { loader } from 'fumadocs-core/source'
+import { llms, loader } from 'fumadocs-core/source'
 import { defineDocs } from 'fumadocs-mdx/macro'
+import { docsRoute } from './shared'
 
-export const docs = defineDocs({ dir: 'content', docs: { async: true } })
+export const docs = defineDocs({
+  dir: 'content',
+  docs: { async: true, postprocess: { includeProcessedMarkdown: true } },
+})
 
-// Pages sit at the site root: /quick-start, not /docs/quick-start. index.md is `/`.
-export const source = loader({ baseUrl: '/', source: docs.toFumadocsSource() })
+export const source = loader({ source: docs.toFumadocsSource(), baseUrl: docsRoute })
 
-export const REPO = 'https://github.com/NovusEdge/a2a-mod'
+export const docsLlms = llms(source, {
+  renderPage: async page => `# ${page.data.title} (${page.url})
+
+${await page.data.getText('processed')}`,
+})
