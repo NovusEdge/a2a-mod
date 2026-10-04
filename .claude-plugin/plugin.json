@@ -9,7 +9,15 @@
   "homepage": "https://github.com/NovusEdge/a2a-mod",
   "repository": "https://github.com/NovusEdge/a2a-mod",
   "license": "MIT",
-  "keywords": ["a2a", "agent2agent", "multi-agent", "orchestration", "agents", "interop", "mod"],
+  "keywords": [
+    "a2a",
+    "agent2agent",
+    "multi-agent",
+    "orchestration",
+    "agents",
+    "interop",
+    "mod"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "layout": {
@@ -17,7 +25,11 @@
       "title": "A2A layout",
       "description": "full: cards, band and workers pane. pane: the workers pane only. minimal: the status line only.",
       "default": "full",
-      "options": ["full", "pane", "minimal"]
+      "options": [
+        "full",
+        "pane",
+        "minimal"
+      ]
     },
     "animations": {
       "type": "boolean",
