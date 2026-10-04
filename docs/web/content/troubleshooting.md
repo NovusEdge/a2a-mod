@@ -40,6 +40,10 @@ Claude sees these in the tool result.
 | `The user declined.` | You chose Cancel or dismissed the dialog. Nothing changed. Ask Claude again to retry. |
 | `No one to approve this; ask the user to run /a2a add <url> themselves.` | The run has no one to ask, such as `claude -p`. Run `/a2a add <url>` in an interactive session. |
 | `No worker named <alias>. Known workers: ...` | `remove_worker` got an unknown alias. Use one of the listed aliases. |
+| A refusal to move an existing worker to another host | Claude cannot change a worker's host. Run `/a2a add <url> <alias>` yourself. |
+| A refusal because the alias already has a token in your `tokens` setting | Claude cannot give a new worker that token. Run `/a2a add` yourself. |
+| A refusal because the endpoint origin is over 100 characters | Claude refuses it. Use a shorter URL. |
+| `Could not read an Agent Card at that URL.` | Check the URL. Run `/a2a add <url>` yourself to see the detailed error. |
 
 If a worker needs a command token, a file token or `--trust-endpoint`, Claude cannot add it. Run `/a2a add` yourself.
 
