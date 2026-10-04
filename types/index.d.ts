@@ -76,6 +76,12 @@ export type RecentTask = {
 /** What one send tool call came to, keyed by its tool_use_id. */
 export type CallInfo = { worker: string; taskId?: string; state: RecentState; startedAt: number }
 
+/** Task ids of the pane rows expanded by Open, and of those showing a Reply field. */
+export type PaneView = { open: string[]; replying: string[] }
+
+/** A reply the user sent from the pane, told to Claude with their next prompt. */
+export type SentReply = { worker: string; taskId: string; text: string }
+
 declare module 'claude-code' {
   interface PluginState {
     'a2a-mod': {
@@ -84,6 +90,8 @@ declare module 'claude-code' {
       calls: Record<string, CallInfo>
       /** Task ids (or tool call ids) whose result has typed itself in once. */
       played: string[]
+      pane: PaneView
+      replies: SentReply[]
     }
   }
 }

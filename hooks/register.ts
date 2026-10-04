@@ -1,11 +1,15 @@
-import type { EngineInterface, Register } from 'claude-code'
-import type { RecentState, Worker } from '../types/index.d.ts'
+import { atom, read, update } from 'claude-code'
+import type { EngineInterface, Register, UiCopyResult } from 'claude-code'
+import type { PaneView, RecentState, RecentTask, SentReply, Worker } from '../types/index.d.ts'
 import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
 import { describeOutcome, FULL_MAX } from './format.ts'
-import { noteCall, noteSent, noteState } from './recent.ts'
+import { changeRecent, isWaiting, noteCall, noteSent, noteState, readRecent, visible } from './recent.ts'
 import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
+import { palette, type Palette } from './ui/color.ts'
+import { hasClient, paneTree, type PaneActions } from './ui/pane.tsx'
+import { parseSettings } from './ui/settings.ts'
 import { isLive } from './wire.ts'
 
 type Engine = EngineInterface
@@ -13,7 +17,17 @@ type Engine = EngineInterface
 const TASKS = { plugin: 'a2a-mod', key: 'tasks' } as const
 const RECENT = { plugin: 'a2a-mod', key: 'recent' } as const
 const CALLS = { plugin: 'a2a-mod', key: 'calls' } as const
+const PANE = { id: 'a2a-workers', title: 'A2A workers' } as const
+const paneView = atom({ plugin: 'a2a-mod', key: 'pane' } as const, { open: [], replying: [] } as PaneView)
+const replies = atom({ plugin: 'a2a-mod', key: 'replies' } as const, [] as SentReply[])
 const TOKEN_CMD_TIMEOUT_MS = 10_000
+// A pane button's own deadline for the worker calls it makes.
+const PRESS_MS = 9000
+const NOT_COPIED: Record<Extract<UiCopyResult, { isCopied: false }>['reason'], string> = {
+  'no-surface': 'nothing is drawing',
+  'no-clipboard': 'this surface has no clipboard Claude Code can write to',
+  refused: 'another mod refused it',
+}
 
 function hostOf($: Engine, settingTokens: SettingTokens): Host {
   return {
@@ -32,6 +46,10 @@ function hostOf($: Engine, settingTokens: SettingTokens): Host {
     readDurations: async () => ((await $.store.get('durations')) as Record<string, number[]> | undefined) ?? {},
     writeDurations: all => $.store.set('durations', all),
     status: text => $.ui.status(text),
+    openPane: async () => {
+      // Unasked, so it may stay unplaced; another mod's ui.open hook may also deny it.
+      try { await $.ui.open(PANE) } catch {}
+    },
     // Wall time, as the backend has always stamped startedAt; $.clock.now is answered only under mock.clock in tests.
     now: async () => Date.now(),
     every: (ms, fn) => $.clock.every(ms, fn),
@@ -103,8 +121,63 @@ async function workerOr(host: Host, alias: unknown): Promise<Worker | string> {
   return names.length ? `No worker named ${String(alias)}. Known workers: ${names.join(', ')}.` : 'No workers registered. Ask the user to run /a2a add <url>.'
 }
 
+async function paletteOf($: Engine): Promise<Palette> {
+  // Another mod's config.list hook may refuse or fail; the dark palette is the fallback.
+  try { return palette((await $.config.list()).find(row => row.key === 'theme')?.value) } catch { return palette(undefined) }
+}
+
+const without = (ids: string[], id: string) => ids.filter(x => x !== id)
+
+async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<void> {
+  const w = (await loadWorkers(host))[t.worker]
+  if (!w) { $.ui.toast(`a2a: ${t.worker} was removed.`); return }
+  await changeRecent(host, t.taskId, held => held && { ...held, canceling: true })
+  const until = Date.now() + PRESS_MS
+  const never = new AbortController().signal
+  try {
+    const target = await bounded($, until - Date.now(), never, w.alias, targetOf(host, w))
+    await bounded($, until - Date.now(), never, w.alias, cancelTask(host.fetch, target, t.taskId))
+    // A waiting task is not polled. Tracking it again lets the next poll report the end and wake Claude.
+    if (isWaiting(t.state)) await track(host, { worker: w.alias, taskId: t.taskId, contextId: t.contextId, state: 'working', startedAt: t.startedAt })
+  } catch (err) {
+    noteFailure(w, err)
+    await changeRecent(host, t.taskId, held => { if (!held) return held; const { canceling, ...rest } = held; return rest })
+    if (err instanceof A2AError) $.ui.toast(`a2a: ${err.message}`)
+    else throw err
+  }
+}
+
+async function replyFromPane($: Engine, host: Host, t: RecentTask, text: string): Promise<boolean> {
+  const w = (await loadWorkers(host))[t.worker]
+  if (!w) { $.ui.toast(`a2a: ${t.worker} was removed.`); return false }
+  const until = Date.now() + PRESS_MS
+  const never = new AbortController().signal
+  try {
+    const target = await bounded($, until - Date.now(), never, w.alias, targetOf(host, w))
+    const out = await bounded($, until - Date.now(), never, w.alias, send(host.fetch, target, { text, taskId: t.taskId, contextId: t.contextId }))
+    const state = out.kind === 'task' ? out.state : 'completed'
+    await noteSent(host, { worker: w.alias, taskId: t.taskId, contextId: out.contextId, text, state }, 'user')
+    if (out.kind === 'task' && isLive(out.state)) {
+      await track(host, { worker: w.alias, taskId: t.taskId, contextId: out.contextId, state: out.state, startedAt: t.startedAt })
+      return true
+    }
+    // Claude heard the question, not this answer, so an answer that ends the task wakes it.
+    await noteState(host, w.alias, t.taskId, state, out.text)
+    await showStatus(host)
+    await host.wake(`A2A task finished:\n\n${describeOutcome(w.alias, out)}`)
+    return true
+  } catch (err) {
+    noteFailure(w, err)
+    if (err instanceof A2AError) { $.ui.toast(`a2a: ${err.message}`); return false }
+    throw err
+  }
+}
+
 export const register: Register = (on, options) => {
   const settingTokens = parseTokens(options.tokens)
+  const ui = parseSettings(options)
+  // Not in $.state: a write per keystroke would redraw the pane under the person's typing.
+  const drafts = new Map<string, string>()
 
   on('session.start', async ($, e, next) => {
     await Promise.all([
@@ -115,7 +188,56 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'a2a' }, async ($, e) => ({ text: e.args.trim() ? await runCommand(hostOf($, settingTokens), e.args) : USAGE }))
+  on('command.run', { command: 'a2a' }, async ($, e) => {
+    if (e.args.trim()) return { text: await runCommand(hostOf($, settingTokens), e.args) }
+    // The person asked, so the pane is placed at any width; another mod's ui.open hook may still deny it.
+    try { await $.ui.open(PANE) } catch {}
+    return { text: USAGE }
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    if (e.origin.kind !== 'composer') return next(e)
+    const sent = await read($, replies)
+    if (!sent.length) return next(e)
+    await update($, replies, () => [])
+    const told = sent.map(r => `You answered ${r.worker}'s question on task ${r.taskId}: "${r.text}"`)
+    return next({ ...e, context: [...(e.context ?? []), ...told] })
+  })
+
+  on('ui.render', { component: 'Pane', requestId: 'a2a-workers' }, async ($, e, next) => {
+    if (!hasClient(e.surface)) return next(e)
+    const host = hostOf($, settingTokens)
+    const now = Date.now()
+    const [workers, list, view, durations, pal] = await Promise.all([loadWorkers(host), readRecent(host), read($, paneView), host.readDurations(), paletteOf($)])
+    const act: PaneActions = {
+      cancel: t => cancelFromPane($, host, t),
+      // One row open at a time keeps the pane under the engine's 100,000-character tree limit.
+      toggleOpen: t => update($, paneView, v => ({ ...v, open: v.open.includes(t.taskId) ? [] : [t.taskId] })),
+      copy: async (t, press) => {
+        const copied = await $.ui.copy({ text: t.result ?? '', surface: press.surface })
+        if (!copied.isCopied) $.ui.toast(`a2a: nothing was copied: ${NOT_COPIED[copied.reason]}.`)
+      },
+      startReply: async t => {
+        await update($, paneView, v => ({ ...v, replying: [...without(v.replying, t.taskId), t.taskId] }))
+        // autoFocus applies only when the pane takes the keyboard, and a press does not hand it over.
+        // The field shows either way: claude plugin test 2.1.288 rejects every $.ui.focus.
+        try { await $.ui.focus({ requestId: PANE.id, key: `input:${t.taskId}` }) } catch {}
+      },
+      draft: (t, text) => { drafts.set(t.taskId, text) },
+      send: async (t, text) => {
+        if (!text.trim() || !(await replyFromPane($, host, t, text))) return
+        drafts.delete(t.taskId)
+        await update($, paneView, v => ({ ...v, replying: without(v.replying, t.taskId) }))
+        await update($, replies, r => [...r, { worker: t.worker, taskId: t.taskId, text }])
+      },
+      discard: async t => {
+        drafts.delete(t.taskId)
+        await update($, paneView, v => ({ ...v, replying: without(v.replying, t.taskId) }))
+      },
+    }
+    const shown = Object.values(workers).sort((a, b) => a.addedAt - b.addedAt)
+    return paneTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, now, anim: ui.animations, pal, workers: shown, rows: visible(list, now), durations, view, drafts }, act)
+  })
 
   on('tool.call', { tool: 'mcp__a2a-mod__workers' }, async $ => {
     const all = Object.values(await loadWorkers(hostOf($, settingTokens)))

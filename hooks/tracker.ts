@@ -38,6 +38,7 @@ async function update(host: Host, change: (tasks: TrackedTask[]) => TrackedTask[
 
 export async function track(host: Host, t: Omit<TrackedTask, 'failures'>): Promise<void> {
   await update(host, tasks => [...tasks.filter(x => x.taskId !== t.taskId), { ...t, failures: 0 }])
+  await host.openPane()
 }
 
 export async function resume(host: Host): Promise<void> {

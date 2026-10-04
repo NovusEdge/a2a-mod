@@ -26,6 +26,8 @@ export type Host = {
   readDurations(): Promise<Record<string, number[]>>
   writeDurations(all: Record<string, number[]>): Promise<void>
   status(text: string | undefined): void
+  /** Opens the workers pane unasked. Never rejects. */
+  openPane(): Promise<void>
   now(): Promise<number>
   every(ms: number, fn: () => void): Timer
   sleep(ms: number): Promise<void>
