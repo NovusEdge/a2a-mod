@@ -1,6 +1,7 @@
 import type { ElementTable, RenderElement, RenderSurface, UiPressArgument } from 'claude-code'
 import type { PaneView, RecentState, RecentTask, Worker } from '../../types/index.d.ts'
 import { isOpen, isRunning, isWaiting } from '../recent.ts'
+import { own } from '../registry.ts'
 import type { Palette } from './color.ts'
 import { barLine, cellLen, cellsOf, lines, splitLine, type BarProps } from './draw.tsx'
 import { clip, fit, gradient, sparkline, type Cell } from './fx.ts'
@@ -164,7 +165,7 @@ function workerHead(el: PaneEls, alias: string, w: Worker | undefined, d: PaneDa
   const out = [head]
   const skills = w.skills.map(s => s.id).join(' · ')
   if (skills) out.push(<Text color="inactive">{fit(skills, width)}</Text>)
-  const runs = d.durations[alias] ?? []
+  const runs = own(d.durations, alias) ?? []
   if (runs.length) {
     const avg = Math.round(runs.reduce((a, b) => a + b, 0) / runs.length / 1000)
     out.push(<Text color="inactive">{fit(`${sparkline(runs)} avg ${avg}s`, width)}</Text>)

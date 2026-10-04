@@ -1,7 +1,7 @@
 import type { StateRead } from 'claude-code'
 import type { CallInfo, RecentState, RecentTask } from '../types/index.d.ts'
 import { printable } from './format.ts'
-import type { Host } from './registry.ts'
+import { own, type Host } from './registry.ts'
 
 export const RECENT_MAX = 50
 // Markdown draws at most 10,000 characters.
@@ -100,7 +100,7 @@ export async function noteState(host: Host, worker: string, taskId: string, stat
   })
   if (state === 'completed' && ran !== undefined) {
     const all = await host.readDurations()
-    await host.writeDurations({ ...all, [worker]: [...(all[worker] ?? []), ran].slice(-DURATIONS_MAX) })
+    await host.writeDurations({ ...all, [worker]: [...(own(all, worker) ?? []), ran].slice(-DURATIONS_MAX) })
   }
 }
 
