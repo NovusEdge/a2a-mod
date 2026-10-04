@@ -7,6 +7,8 @@ section: Start
 
 No real agent needed. Run the fake worker that ships with the repo, register it, and send it a slow task to watch the result come back on its own.
 
+<div className="fd-steps [&_h2]:fd-step">
+
 ## Start the fake worker
 
 The fake worker echoes, waits, or asks a question back. It needs Node 24 and pnpm.
@@ -46,6 +48,8 @@ a2a-mod: ⠋ fake slow 20 build 0:12
 ```
 
 When the worker finishes, the line reads `a2a-mod: ✓ fake done 0:20` for 5 seconds, and the mod wakes Claude with the result.
+
+</div>
 
 ## What the fake worker understands
 
