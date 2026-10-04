@@ -1,5 +1,4 @@
-// Frame maths ported from docs/superpowers/mockups/effects.html. Each function returns one cell
-// per character; `runs` merges them before they become Text elements.
+// Each function returns one cell per character; `runs` merges them before they become Text elements.
 import { printable } from '../format.ts'
 import { mix, type Palette } from './color.ts'
 import { DOTS } from './frames.ts'
