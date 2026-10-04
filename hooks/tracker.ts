@@ -2,9 +2,9 @@ import type { Timer } from 'claude-code'
 import type { RecentState, TrackedTask } from '../types/index.d.ts'
 import { getTask } from './client.ts'
 import { describeOutcome } from './format.ts'
-import { noteState, readRecent, waitingCount } from './recent.ts'
+import { isOpen, isRunning, noteState, readRecent } from './recent.ts'
 import { loadWorkers, noteFailure, targetOf, type Host } from './registry.ts'
-import { statusText } from './ui/status.ts'
+import { STATUS_MS, statusText } from './ui/status.ts'
 import { isLive } from './wire.ts'
 
 export const POLL_MS = 5000
@@ -12,14 +12,22 @@ export const POLL_TIMEOUT_MS = 15000
 export const MAX_FAILURES = 6
 
 let ticker: Timer | undefined
+let statusTicker: Timer | undefined
 let busy = false
 
 export async function runningTasks(host: Host): Promise<TrackedTask[]> {
   return (await host.readTasks()).value ?? []
 }
 
+// The line has a clock and a spinner in it, so it is redrawn each second while a task runs or a
+// "done" line is waiting out its five seconds. A waiting question is static and needs no ticker.
 export async function showStatus(host: Host): Promise<void> {
-  host.status(statusText((await runningTasks(host)).length, waitingCount(await readRecent(host))))
+  const rows = await readRecent(host)
+  const text = statusText(rows, await host.now(), host.anim)
+  host.status(text)
+  const needsTick = rows.some(t => isRunning(t.state)) || (text !== undefined && !rows.some(isOpen))
+  if (!needsTick) { statusTicker?.cancel(); statusTicker = undefined }
+  else if (!statusTicker) statusTicker = host.every(STATUS_MS, () => showStatus(host))
 }
 
 // Read-modify-write with ifVersion: a send can track a task while a tick is writing.
@@ -38,9 +46,9 @@ async function update(host: Host, change: (tasks: TrackedTask[]) => TrackedTask[
 
 export async function track(host: Host, t: Omit<TrackedTask, 'failures'>): Promise<void> {
   await update(host, tasks => [...tasks.filter(x => x.taskId !== t.taskId), { ...t, failures: 0 }])
-  await host.openPane()
 }
 
+// A reload drops the module state, and with it both tickers, while tasks are still live.
 export async function resume(host: Host): Promise<void> {
   if ((await runningTasks(host)).length) await update(host, tasks => tasks)
   else await showStatus(host)

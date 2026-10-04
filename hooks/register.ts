@@ -8,7 +8,7 @@ import { changeRecent, isWaiting, noteCall, noteSent, noteState, readRecent, vis
 import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
-import { bandTree, nextRedraw } from './ui/band.tsx'
+import { bandRows, bandTree, nextRedraw } from './ui/band.tsx'
 import { resultCard, textOf, useCard, wakeCard, wakeNotes } from './ui/cards.tsx'
 import { paneTree, type PaneActions } from './ui/pane.tsx'
 import { parseSettings, type UiSettings } from './ui/settings.ts'
@@ -20,6 +20,9 @@ const TASKS = { plugin: 'a2a-mod', key: 'tasks' } as const
 const RECENT = { plugin: 'a2a-mod', key: 'recent' } as const
 const CALLS = { plugin: 'a2a-mod', key: 'calls' } as const
 const PANE = { id: 'a2a-workers', title: 'A2A workers' } as const
+// Wanted sizes: a slim dock beside /diff, a short block when inline.
+const PANE_COLUMNS = 32
+const PANE_ROWS = 12
 const paneView = atom({ plugin: 'a2a-mod', key: 'pane' } as const, { open: [], replying: [] } as PaneView)
 const replies = atom({ plugin: 'a2a-mod', key: 'replies' } as const, [] as SentReply[])
 const played = atom({ plugin: 'a2a-mod', key: 'played' } as const, [] as string[])
@@ -31,6 +34,12 @@ const NOT_COPIED: Record<Extract<UiCopyResult, { isCopied: false }>['reason'], s
   'no-surface': 'nothing is drawing',
   'no-clipboard': 'this surface has no clipboard Claude Code can write to',
   refused: 'another mod refused it',
+}
+
+// The status line and the band age by this clock, so a test's mock clock moves them. Another mod's
+// clock.now hook may refuse; the wall clock is the fallback.
+async function nowOf($: Engine): Promise<number> {
+  try { return await $.clock.now() } catch { return Date.now() }
 }
 
 function hostOf($: Engine, settingTokens: SettingTokens, ui: UiSettings): Host {
@@ -50,13 +59,8 @@ function hostOf($: Engine, settingTokens: SettingTokens, ui: UiSettings): Host {
     readDurations: async () => ((await $.store.get('durations')) as Record<string, number[]> | undefined) ?? {},
     writeDurations: all => $.store.set('durations', all),
     status: text => $.ui.status(text),
-    openPane: async () => {
-      if (ui.layout === 'minimal') return
-      // Unasked, so it may stay unplaced; another mod's ui.open hook may also deny it.
-      try { await $.ui.open(PANE) } catch {}
-    },
-    // Wall time, as the backend has always stamped startedAt; $.clock.now is answered only under mock.clock in tests.
-    now: async () => Date.now(),
+    anim: ui.animations,
+    now: () => nowOf($),
     every: (ms, fn) => $.clock.every(ms, fn),
     sleep: ms => $.clock.sleep(ms),
     wake: async text => { await $.prompt.submit({ text }) },
@@ -201,8 +205,9 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'a2a' }, async ($, e) => {
     if (e.args.trim()) return { text: await runCommand(hostOf($, settingTokens, ui), e.args) }
-    // The person asked, so the pane is placed at any width; another mod's ui.open hook may still deny it.
-    if (ui.layout !== 'minimal') try { await $.ui.open(PANE) } catch {}
+    // Only the person opens the pane, so a running task never switches the dock away from /diff.
+    // Asked, it is placed at any width; another mod's ui.open hook may still deny it.
+    if (ui.layout !== 'minimal') try { await $.ui.open({ ...PANE, columns: PANE_COLUMNS, rows: PANE_ROWS }) } catch {}
     return { text: USAGE }
   })
 
@@ -221,7 +226,7 @@ export const register: Register = (on, options) => {
     const input = (e.props.input ?? {}) as { worker?: unknown; message?: unknown }
     const alias = String(input.worker ?? '')
     const [workers, calls, pal] = await Promise.all([loadWorkers(host), host.readCalls(), paletteOf($)])
-    const now = Date.now()
+    const now = await nowOf($)
     return useCard($.ui.resolve(e), {
       surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal, now, alias, worker: workers[alias],
       message: String(input.message ?? ''), isRunning: e.props.isRunning, startedAt: calls.value?.[e.props.tool_use_id]?.startedAt ?? now,
@@ -238,13 +243,14 @@ export const register: Register = (on, options) => {
   })
 
   // The band is shared: another mod may draw there, and the first tree in the chain wins. So it
-  // draws only while it has recent work, yields to surveys, and stacks next(e)'s tree under its own.
+  // draws only while a task runs or waits (and for the return packet after), yields to surveys,
+  // and stacks next(e)'s tree under its own.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (ui.layout !== 'full' || e.props.hasSurvey) return next(e)
-    const now = Date.now()
-    const rows = visible(await readRecent(hostOf($, settingTokens, ui)), now)
+    const now = await nowOf($)
+    const rows = bandRows(await readRecent(hostOf($, settingTokens, ui)), now)
     if (!rows.length) return next(e)
-    // A row ages out, and the return packet rests, with no state change to redraw the band, so a timer does it.
+    // The return packet rests with no state change to redraw the band, so a timer does it.
     bandExpiry?.cancel()
     const due = nextRedraw(rows, now, true)
     bandExpiry = due === undefined ? undefined : $.clock.after(due, () => $.ui.invalidate('ui.render'))
@@ -274,7 +280,7 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: 'a2a-workers' }, async ($, e) => {
     const host = hostOf($, settingTokens, ui)
-    const now = Date.now()
+    const now = await nowOf($)
     const [workers, list, view, durations, pal] = await Promise.all([loadWorkers(host), readRecent(host), read($, paneView), host.readDurations(), paletteOf($)])
     const act: PaneActions = {
       cancel: t => cancelFromPane($, host, t),

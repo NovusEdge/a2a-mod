@@ -15,6 +15,11 @@ const NAMES_MAX = 4
 // How long the packet runs back after the last running task ends.
 export const BACK_MS = 2000
 
+/** Running and waiting rows, and rows that ended within the return packet's two seconds. */
+export function bandRows(list: readonly RecentTask[], now: number): RecentTask[] {
+  return list.filter(t => isOpen(t) || (t.endedAt !== undefined && now - t.endedAt < BACK_MS))
+}
+
 /** Out after the newest send, back after the newest result, idle once nothing runs and the return has played. */
 export function direction(rows: readonly RecentTask[], now: number): Direction {
   const ended = Math.max(0, ...rows.map(t => t.endedAt ?? 0))

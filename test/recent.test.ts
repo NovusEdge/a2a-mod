@@ -78,7 +78,7 @@ test('a task that asks a question stays listed as waiting, is not polled, and sh
   await tick(fx.host)
   expect(fx.recent()[0]).toMatchObject({ state: 'input-required', result: 'Which colour?' })
   expect(fx.tasks()).toEqual([])
-  expect(fx.statuses.at(-1)).toBe('a2a: 0 running · 1 waiting')
+  expect(fx.statuses.at(-1)).toBe('a2a ? fake waiting: Which colour?')
   expect(fx.wakes[0]).toContain('input-required')
   await tick(fx.host)
   expect(polls).toBe(1)

@@ -43,7 +43,7 @@ for (const surface of SURFACES) {
     await sendAndWait($, clock, 'slow 60 build')
     const ui = await mountPane($, surface)
     const key = `row:${SLOW_ID}`
-    expect(await ui.find({ type: 'Text', text: 'a2a: 1 running' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /1 live/ })).toBeDefined()
     expect(await ui.find({ type: 'Client', key })).toBeDefined()
     expect(await ui.find({ type: 'Button', key: `reply:${SLOW_ID}` })).toBeUndefined()
     const before = JSON.stringify(await ui.drawn({ in: key }))
@@ -295,9 +295,21 @@ test('vscode draws still rows and keeps Reply; mobile drops Reply and every Inpu
   expect(await mobile.find({ type: 'Button', key: `cancel:${ASK_ID}` })).toBeDefined()
 })
 
-test('/a2a opens the pane', async ($, on) => {
+test('/a2a opens the pane slim and without taking focus', async ($, on) => {
   mock.store(on, STORE)
   const seen = engineUi(on)
   expect((await runA2a($)).text).toContain('/a2a add <url>')
   expect(seen.opened).toEqual(['a2a-workers'])
+  expect(seen.args[0]).toMatchObject({ columns: 32, rows: 12 })
+  expect(seen.args[0]).not.toHaveProperty('focus')
+})
+
+test('tracking a task never opens the pane', WITH_TOKEN, async ($, on) => {
+  mock.store(on, STORE)
+  const clock = mock.clock(on)
+  const seen = engineUi(on)
+  fakeNet(on, { send: f.v1_send_slow, get: f.v1_get_working })
+  await sendAndWait($, clock, 'slow 60 build')
+  await clock.advance(10_000)
+  expect(seen.opened).toEqual([])
 })

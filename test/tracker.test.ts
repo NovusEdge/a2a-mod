@@ -67,7 +67,7 @@ test('a worker that stops answering is dropped after six failures', WITH_TOKEN, 
   expect(woke[0]).toContain('lost contact')
 })
 
-test('status line shows running tasks and clears at zero', WITH_TOKEN, async ($, on) => {
+test('status line shows the running task, then its end for five seconds, then clears', WITH_TOKEN, async ($, on) => {
   mock.store(on, STORE)
   const clock = mock.clock(on)
   const statuses: (string | undefined)[] = []
@@ -76,8 +76,10 @@ test('status line shows running tasks and clears at zero', WITH_TOKEN, async ($,
   let done = false
   fakeNet(on, { send: f.v1_send_slow, get: () => (done ? f.v1_get_completed : f.v1_get_working) })
   await sendSlow($, clock)
-  expect(statuses.at(-1)).toBe('a2a: 1 running')
+  expect(statuses.at(-1)).toMatch(/^a2a . fake slow 60 build 0:\d\d$/)
   done = true
+  await clock.advance(5000)
+  expect(statuses.at(-1)).toMatch(/^a2a ✓ fake done 0:\d\d$/)
   await clock.advance(5000)
   expect(statuses.at(-1)).toBeUndefined()
 })

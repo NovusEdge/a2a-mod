@@ -1,9 +1,10 @@
-import type { ConfigRow, HttpInit, HttpResponse, ProcessRunResult, RenderElement, RenderPropsOf, StateRead } from 'claude-code'
+import type { ConfigRow, HttpInit, PaneOpenArgs, HttpResponse, ProcessRunResult, RenderElement, RenderPropsOf, StateRead } from 'claude-code'
 import { expect, type Engine, type Plugin, type TestBody } from 'claude-code/testing'
 import type { Fetcher } from '../hooks/client.ts'
 import type { Host } from '../hooks/registry.ts'
 import type { CallInfo, RecentTask, TrackedTask } from '../types/index.d.ts'
 import { fixtures as f } from './fixtures.ts'
+import { STATUS_MS } from '../hooks/ui/status.ts'
 
 // The test runtime has timers; the mod lib in tsconfig does not declare them.
 declare const setTimeout: (fn: () => void, ms: number) => unknown
@@ -95,7 +96,7 @@ export function fakeHost(fetch: Fetcher, left: TrackedTask[] = [], opts: { now?:
   const statuses: (string | undefined)[] = []
   const clock = { now: opts.now ?? 0 }
   const timer: { fn?: () => void } = {}
-  let opened = 0
+  const statusTimer: { fn?: () => unknown } = {}
   const host: Host = {
     fetch,
     readWorkers: async () => STORE.workers,
@@ -112,19 +113,22 @@ export function fakeHost(fetch: Fetcher, left: TrackedTask[] = [], opts: { now?:
     readDurations: async () => durations,
     writeDurations: async all => { durations = all },
     status: text => { statuses.push(text) },
-    openPane: async () => { opened++ },
+    anim: true,
     now: async () => clock.now,
-    every: (_ms, fn) => { timer.fn = fn; return { cancel: () => { timer.fn = undefined } } },
+    every: (ms, fn) => {
+      const slot = ms === STATUS_MS ? statusTimer : timer
+      slot.fn = fn
+      return { cancel: () => { slot.fn = undefined } }
+    },
     sleep: () => new Promise(r => setTimeout(r, 0)),
     wake: async text => { wakes.push(text) },
   }
   return {
-    host, wakes, timer, statuses, clock,
+    host, wakes, timer, statusTimer, statuses, clock,
     tasks: () => tasks.get(),
     recent: () => recent.get(),
     calls: () => calls.get(),
     durations: () => durations,
-    opened: () => opened,
   }
 }
 
@@ -149,7 +153,7 @@ export const PANE_PROPS = (bodyColumns = 60): RenderPropsOf['Pane'] =>
  * Register it before any other hook on those events.
  */
 export function engineUi(on: On, opts: { copied?: boolean; theme?: string | Error } = {}) {
-  const seen = { toasts: [] as string[], callIds: [] as string[], copies: [] as string[], opened: [] as string[], closed: [] as string[] }
+  const seen = { toasts: [] as string[], callIds: [] as string[], copies: [] as string[], opened: [] as string[], args: [] as PaneOpenArgs[], closed: [] as string[] }
   on('ui.render', async (_$, e) => ({ type: 'Text', props: {}, children: [`engine ${e.component}`] }) as RenderElement)
   on('config.list', async () => {
     if (opts.theme instanceof Error) throw opts.theme
@@ -164,7 +168,7 @@ export function engineUi(on: On, opts: { copied?: boolean; theme?: string | Erro
     seen.copies.push(e.text)
     return { value: opts.copied === false ? { isCopied: false, reason: 'no-clipboard' } : { isCopied: true } }
   })
-  on('ui.open', async (_$, e) => { seen.opened.push(e.id); return { value: { isPlaced: true } } })
+  on('ui.open', async (_$, e) => { seen.opened.push(e.id); seen.args.push(e); return { value: { isPlaced: true } } })
   on('ui.close', async (_$, e) => { seen.closed.push(e.id); return { value: undefined } })
   return seen
 }

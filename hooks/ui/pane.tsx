@@ -5,7 +5,6 @@ import type { Palette } from './color.ts'
 import { cellsOf, lines, rowLines, stillTick, type RowProps } from './draw.tsx'
 import { fit, gradient, PULSE_MS, sparkline } from './fx.ts'
 import { STATES } from './states.ts'
-import { statusText } from './status.ts'
 
 export const NARROW = 40
 
@@ -105,7 +104,8 @@ export function paneTree(el: PaneEls, d: PaneData, act: PaneActions): RenderElem
   const known = new Set(d.workers.map(w => w.alias))
   const gone = [...new Set(d.rows.map(t => t.worker).filter(a => !known.has(a)))]
   const groups: [string, Worker | undefined][] = [...d.workers.map((w): [string, Worker] => [w.alias, w]), ...gone.map((a): [string, undefined] => [a, undefined])]
-  const summary = statusText(d.rows.filter(t => isRunning(t.state)).length, d.rows.filter(t => isWaiting(t.state)).length)
+  const live = d.rows.filter(t => isRunning(t.state) || isWaiting(t.state)).length
+  const summary = live ? `${live} live` : undefined
   return (
     <Box flexDirection="column">
       {summary ? <Text dimColor>{fit(summary, d.width)}</Text> : null}

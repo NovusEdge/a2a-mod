@@ -2,16 +2,17 @@ import { test, expect, mock, type Engine, type MockClock, type Plugin } from 'cl
 import type { RenderElement, RenderSurface } from 'claude-code'
 import { BAND_PROPS, engineUi, expectNoToken, fakeNet, has, STORE, SURFACES, WITH_TOKEN } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
-import { BACK_MS, direction, nextRedraw } from '../hooks/ui/band.tsx'
+import { BACK_MS, bandRows, direction, nextRedraw } from '../hooks/ui/band.tsx'
 import { SHOW_MS } from '../hooks/recent.ts'
 import type { RecentTask } from '../types/index.d.ts'
 
 const mountBand = <S extends RenderSurface>($: Engine, surface: S, over = {}) =>
   $.ui.mount({ plugin: 'a2a-mod', surface, component: 'AbovePrompt', props: BAND_PROPS(over) })
 
-async function send($: Engine, clock: MockClock, message: string) {
+// The band ages by the mock clock, so a send that answers at once advances it barely.
+async function send($: Engine, clock: MockClock, message: string, ms = 7500) {
   const p = $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message })
-  await clock.advance(7500)
+  await clock.advance(ms)
   await p
 }
 
@@ -27,6 +28,14 @@ test('a lone task that just ended still gets its return packet, for two seconds'
   const done = [row({ state: 'completed', startedAt: 1, endedAt: 1000 })]
   expect(direction(done, 1500)).toBe('back')
   expect(direction(done, 1000 + BACK_MS)).toBe('idle')
+})
+
+test('the band keeps running and waiting rows, and rows that ended in the last two seconds', () => {
+  const rows = [row({ taskId: 'run' }), row({ taskId: 'ask', state: 'input-required' }), row({ taskId: 'new', state: 'completed', endedAt: 9000 }), row({ taskId: 'old', state: 'completed', endedAt: 100 })]
+  expect(bandRows(rows, 9000 + BACK_MS - 1).map(t => t.taskId)).toEqual(['run', 'ask', 'new'])
+  expect(bandRows(rows, 9000 + BACK_MS).map(t => t.taskId)).toEqual(['run', 'ask'])
+  expect(bandRows([rows[3]!], 200)).toHaveLength(1)
+  expect(bandRows([rows[3]!], 100 + SHOW_MS)).toEqual([])
 })
 
 test('the next redraw is when a finished row ages out or the return packet rests', () => {
@@ -83,15 +92,30 @@ for (const surface of SURFACES) {
     expect(await ui.find({ type: 'Text', text: ' fake · waiting on Claude' })).toBeDefined()
   })
 
-  test(`a lone finished task runs the packet back on ${surface}`, WITH_TOKEN, async ($, on) => {
+  test(`a lone finished task runs the packet back, then the band is gone, on ${surface}`, WITH_TOKEN, async ($, on) => {
+    mock.store(on, STORE)
+    const clock = mock.clock(on)
+    engineUi(on)
+    fakeNet(on, { send: f.v1_send_echo, get: f.v1_get_completed })
+    await send($, clock, 'hi', 1000)
+    const ui = await mountBand($, surface)
+    const wire = await ui.find({ type: 'Client', key: 'wire' })
+    expect((wire?.props.props as { dir: string }).dir).toBe('back')
+    await clock.advance(BACK_MS + 100)
+    expect(await ui.drawn()).toEqual({ type: 'Text', props: {}, children: ['engine AbovePrompt'] })
+  })
+
+  test(`a finished task alone never draws the band, two seconds on or ten minutes on, on ${surface}`, WITH_TOKEN, async ($, on) => {
     mock.store(on, STORE)
     const clock = mock.clock(on)
     engineUi(on)
     fakeNet(on, { send: f.v1_send_echo, get: f.v1_get_completed })
     await send($, clock, 'hi')
+    await clock.advance(BACK_MS + 100)
     const ui = await mountBand($, surface)
-    const wire = await ui.find({ type: 'Client', key: 'wire' })
-    expect((wire?.props.props as { dir: string }).dir).toBe('back')
+    expect(await ui.drawn()).toEqual({ type: 'Text', props: {}, children: ['engine AbovePrompt'] })
+    await clock.advance(SHOW_MS)
+    expect(await ui.drawn()).toEqual({ type: 'Text', props: {}, children: ['engine AbovePrompt'] })
   })
 
   test(`a survey always gets the band on ${surface}`, WITH_TOKEN, async ($, on) => {
@@ -124,7 +148,7 @@ test('the band redraws when its return packet is due to rest', { ...WITH_TOKEN, 
   const clock = mock.clock(on)
   const seen = engineUi(on)
   fakeNet(on, { send: f.v1_send_echo, get: f.v1_get_completed })
-  await send($, clock, 'hi')
+  await send($, clock, 'hi', 1000)
   await mountBand($, 'terminal')
   const draws = () => seen.toasts.filter(t => t === 'band-draw').length
   const before = draws()
