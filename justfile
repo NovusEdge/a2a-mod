@@ -62,7 +62,7 @@ release new:
     # The gates run after the bump because release.yml compares the tag with
     # plugin.json. A failing gate would leave a half-applied bump, so the trap
     # restores it. The commit below is the point of no return.
-    bumped=".claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md"
+    bumped="package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md"
     trap 'echo "release aborted; restoring $bumped" >&2; git checkout -- $bumped' ERR INT TERM
     node scripts/roll-changelog.ts "{{new}}"
     # Rewritten as JSON, not by sed: a manifest that stops parsing takes the
@@ -76,6 +76,7 @@ release new:
         fn(d)
         fs.writeFileSync(path, JSON.stringify(d, null, 2) + "\n")
       }
+      edit("package.json", d => { d.version = v })
       edit(".claude-plugin/plugin.json", d => { d.version = v })
       edit(".claude-plugin/marketplace.json", d => {
         if (d.metadata && "version" in d.metadata) d.metadata.version = v
@@ -83,7 +84,7 @@ release new:
       })
     ' "{{new}}"
     just gates
-    git add .claude-plugin/plugin.json .claude-plugin/marketplace.json CHANGELOG.md .docket
+    git add $bumped .docket
     trap - ERR INT TERM
     git commit -s -m "release: {{new}}"
     git tag -a "v{{new}}" -m "a2a-mod {{new}}"
@@ -97,9 +98,11 @@ publish new:
     # Separate from release so a failed push is one command to retry.
     git rev-parse -q --verify "refs/tags/v{{new}}" >/dev/null \
       || { echo "no tag v{{new}}; run just release {{new}} first"; exit 1; }
-    have="$(node -p 'require("./.claude-plugin/plugin.json").version')"
-    test "$have" = "{{new}}" \
-      || { echo "plugin.json says $have, not {{new}}"; exit 1; }
+    for f in .claude-plugin/plugin.json package.json; do
+      have="$(node -p 'require("./'"$f"'").version')"
+      test "$have" = "{{new}}" \
+        || { echo "$f says $have, not {{new}}"; exit 1; }
+    done
     git push origin HEAD --follow-tags
     echo "pushed v{{new}}; the release workflow publishes it"
     if command -v gh >/dev/null; then

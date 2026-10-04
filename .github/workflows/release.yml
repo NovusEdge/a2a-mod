@@ -11,8 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Tag matches plugin.json
-        run: test "v$(jq -r .version .claude-plugin/plugin.json)" = "$GITHUB_REF_NAME"
+      - name: Tag matches plugin.json and package.json
+        run: |
+          test "v$(jq -r .version .claude-plugin/plugin.json)" = "$GITHUB_REF_NAME"
+          test "v$(jq -r .version package.json)" = "$GITHUB_REF_NAME"
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
