@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, UiCopyResult } from 'claude-code'
+import type { EngineInterface, Register, Timer, UiCopyResult } from 'claude-code'
 import type { PaneView, RecentState, RecentTask, SentReply, Worker } from '../types/index.d.ts'
 import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
@@ -8,6 +8,7 @@ import { changeRecent, isWaiting, noteCall, noteSent, noteState, readRecent, vis
 import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
+import { bandTree, nextRedraw } from './ui/band.tsx'
 import { resultCard, textOf, useCard, wakeCard, wakeNotes } from './ui/cards.tsx'
 import { hasClient, paneTree, type PaneActions } from './ui/pane.tsx'
 import { parseSettings } from './ui/settings.ts'
@@ -183,6 +184,8 @@ export const register: Register = (on, options) => {
   const ui = parseSettings(options)
   // Not in $.state: a write per keystroke would redraw the pane under the person's typing.
   const drafts = new Map<string, string>()
+  let paneExpiry: Timer | undefined
+  let bandExpiry: Timer | undefined
 
   on('session.start', async ($, e, next) => {
     await Promise.all([
@@ -229,6 +232,21 @@ export const register: Register = (on, options) => {
     const call = calls.value?.[e.props.tool_use_id]
     const playId = call?.taskId ?? e.props.tool_use_id
     return resultCard($.ui.resolve(e), { surface: e.surface, anim: ui.animations, state: call?.state, isErrored: e.props.isErrored, text: textOf(e.props.output), playId, played: done.includes(playId) })
+  })
+
+  // The band is shared: another mod may draw there, and the first tree in the chain wins. So it
+  // draws only while it has recent work, yields to surveys, and stacks next(e)'s tree under its own.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (!hasClient(e.surface) || e.props.hasSurvey) return next(e)
+    const now = Date.now()
+    const rows = visible(await readRecent(hostOf($, settingTokens)), now)
+    if (!rows.length) return next(e)
+    // A row ages out, and the return packet rests, with no state change to redraw the band, so a timer does it.
+    bandExpiry?.cancel()
+    const due = nextRedraw(rows, now, true)
+    bandExpiry = due === undefined ? undefined : $.clock.after(due, () => $.ui.invalidate('ui.render'))
+    const [pal, theirs] = await Promise.all([paletteOf($), next(e)])
+    return bandTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, now, anim: ui.animations, pal, rows }, theirs)
   })
 
   on('ui.render', { component: 'UserMessage', props: { origin: { kind: 'plugin' } } }, async ($, e, next) => {
@@ -283,7 +301,12 @@ export const register: Register = (on, options) => {
       },
     }
     const shown = Object.values(workers).sort((a, b) => a.addedAt - b.addedAt)
-    return paneTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, now, anim: ui.animations, pal, workers: shown, rows: visible(list, now), durations, view, drafts }, act)
+    const rows = visible(list, now)
+    // A row ages out with no state change to redraw the pane, so a timer does it.
+    paneExpiry?.cancel()
+    const due = nextRedraw(rows, now, false)
+    paneExpiry = due === undefined ? undefined : $.clock.after(due, () => $.ui.invalidate('ui.render'))
+    return paneTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, now, anim: ui.animations, pal, workers: shown, rows, durations, view, drafts }, act)
   })
 
   on('tool.call', { tool: 'mcp__a2a-mod__workers' }, async $ => {

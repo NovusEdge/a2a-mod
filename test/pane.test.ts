@@ -1,4 +1,5 @@
-import { test, expect, mock, type Engine, type MockClock } from 'claude-code/testing'
+import { test, expect, mock, type Engine, type MockClock, type Plugin } from 'claude-code/testing'
+import { SHOW_MS } from '../hooks/recent.ts'
 import type { RenderSurface } from 'claude-code'
 import { completedWith, drawnAll, engineUi, expectNoToken, fakeNet, PANE_PROPS, promptLog, runA2a, STORE, SURFACES, widthOf, WITH_TOKEN } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
@@ -244,6 +245,31 @@ for (const surface of SURFACES) {
     expect(await ui.find({ type: 'Button', key: 'copy:e0' })).toBeUndefined()
   })
 }
+
+// A pane draw reads the theme once, so a toast per config.list read counts the draws.
+// A plugin's hooks cannot close over test variables, so engineUi's toast list is the counter.
+const themeReads: Plugin = {
+  name: 'theme-reads',
+  register(on) {
+    on('config.list', async ($, e, next) => {
+      $.ui.toast('pane-draw')
+      return next(e)
+    })
+  },
+}
+
+test('the pane redraws when a finished row is due to age out', { ...WITH_TOKEN, plugins: [themeReads] }, async ($, on) => {
+  mock.store(on, STORE)
+  const clock = mock.clock(on)
+  const seen = engineUi(on)
+  fakeNet(on, { send: f.v1_send_echo, get: f.v1_get_completed })
+  await sendAndWait($, clock, 'hi')
+  await mountPane($, 'terminal')
+  const draws = () => seen.toasts.filter(t => t === 'pane-draw').length
+  const before = draws()
+  await clock.advance(SHOW_MS + 1000)
+  expect(draws()).toBeGreaterThan(before)
+})
 
 test('/a2a opens the pane', async ($, on) => {
   mock.store(on, STORE)

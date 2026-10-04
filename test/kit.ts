@@ -214,6 +214,9 @@ export async function expectNoToken(ui: Drawn): Promise<void> {
   for (const tree of await drawnAll(ui)) expect(JSON.stringify(tree)).not.toContain(TOKEN)
 }
 
+export const BAND_PROPS = (over: Partial<RenderPropsOf['AbovePrompt']> = {}): RenderPropsOf['AbovePrompt'] =>
+  ({ hasSurvey: false, isWorking: false, maxRows: 12, bodyColumns: 80, scroll: { offset: 0, bodyRows: 12 }, view: {}, ...over })
+
 /**
  * Loaded outside a2a-mod (prepend tier), so it sees every tool call first and reports its
  * tool_use_id as a toast that engineUi collects: the test $ never shows the id.
