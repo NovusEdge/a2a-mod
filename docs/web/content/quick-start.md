@@ -35,7 +35,7 @@ use it on slow 20 build
 
 The first prompt gets an inline reply that lists the worker and its skills.
 
-The second is a task that takes 20 seconds. Claude gets a task id back after about 7 seconds and carries on. The status line shows `a2a: 1 running`. When the worker finishes, the mod wakes Claude with the result.
+The second is a task that takes 20 seconds. Claude gets a task id back after about 7 seconds and carries on. The status line shows the task, like `a2a ⠋ fake slow 20 build 0:12`. When the worker finishes, the mod wakes Claude with the result.
 
 ## What the fake worker understands
 

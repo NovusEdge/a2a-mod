@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The status line shows the live task: `a2a ⠋ fake slow 20 build 0:12`. With several tasks it reads `a2a ⠋ 2 running · 1 waiting`; a task that asks a question reads `a2a ? fake waiting: <question>`; a task that just ended shows `a2a ✓ fake done 0:20` for 5 seconds. It updates once a second while a task runs.
+- The hand-off band above the prompt draws only while a task runs or waits, plus the 2-second return packet after the last one ends. It no longer lingers for 10 minutes, and its chips no longer show elapsed time.
+- The workers pane opens only when you run `/a2a`, never on its own, so a running task no longer switches the dock away from `/diff`. It asks for a slim dock (32 columns) or a short block (12 rows) and does not take the keyboard.
+- The workers pane is redrawn for that width, and holds down to 24 columns: a header (`⇄ a2a` and a count of workers and live tasks), one rounded box per worker with its tasks inside, and a footer with the key hints pinned to the bottom. Rows run the full width, with times, versions and buttons at the right edge. The empty pane is centred.
+- The transcript cards for `send` and for wake messages are rounded boxes, indented two columns and as wide as the transcript allows (up to 100). The worker is in the header with its version and organization at the right; the message is wrapped under a quote bar; the result has a coloured badge (`● tracked`, `✓ completed`, `? needs input`, `✕ failed`) and an indented body. A tracked task reads `tracked · task 5954ae32 · you'll be told when it lands` instead of the text written for Claude.
+
 ## [0.1.0] - 2026-10-04
 
 ### Added

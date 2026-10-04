@@ -17,7 +17,7 @@ The mod also stops polling early when too little of the tool call's time budget 
 
 A task that is still live after the window goes into session state. Claude gets its task id and a note: the worker is working on it, a message will come when it finishes, do not poll. Claude carries on with other work.
 
-A timer polls every tracked task every 5 seconds. A poll that gets no answer within 15 seconds counts as failed. The status line shows `a2a: N running`, and clears when nothing is left.
+A timer polls every tracked task every 5 seconds. A poll that gets no answer within 15 seconds counts as failed. The status line shows the live task and its age, updated once a second while a task runs, and clears when nothing is left.
 
 Tracked tasks live in session state, so the timer picks them up again when the session starts.
 
