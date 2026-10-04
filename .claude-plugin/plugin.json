@@ -12,6 +12,19 @@
   "keywords": ["a2a", "agent2agent", "multi-agent", "orchestration", "agents", "interop", "mod"],
   "types": "./types/index.d.ts",
   "userConfig": {
+    "layout": {
+      "type": "string",
+      "title": "A2A layout",
+      "description": "full: cards, band and workers pane. pane: the workers pane only. minimal: the status line only.",
+      "default": "full",
+      "options": ["full", "pane", "minimal"]
+    },
+    "animations": {
+      "type": "boolean",
+      "title": "A2A animations",
+      "description": "Off: spinners, shimmer, bars and the wire draw one still frame.",
+      "default": true
+    },
     "tokens": {
       "type": "string",
       "title": "Worker tokens",

@@ -3,6 +3,7 @@ import type { TrackedTask } from '../types/index.d.ts'
 import { getTask } from './client.ts'
 import { describeOutcome } from './format.ts'
 import { loadWorkers, noteFailure, targetOf, type Host } from './registry.ts'
+import { statusText } from './ui/status.ts'
 import { isLive } from './wire.ts'
 
 export const POLL_MS = 5000
@@ -22,7 +23,7 @@ async function update(host: Host, change: (tasks: TrackedTask[]) => TrackedTask[
     const held = await host.readTasks()
     const next = change(held.value ?? [])
     if (await host.writeTasks(next, held.version)) {
-      host.status(next.length ? `a2a: ${next.length} running` : undefined)
+      host.status(statusText(next.length, 0))
       if (!next.length) { ticker?.cancel(); ticker = undefined }
       else if (!ticker) ticker = host.every(POLL_MS, () => void tick(host))
       return next
