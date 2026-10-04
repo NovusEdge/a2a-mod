@@ -314,7 +314,7 @@ export const register: Register = (on, options) => {
     paneExpiry?.cancel()
     const due = nextRedraw(rows, now, false)
     paneExpiry = due === undefined ? undefined : $.clock.after(due, () => $.ui.invalidate('ui.render'))
-    return paneTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, now, anim: ui.animations, pal, workers: shown, rows, durations, view, drafts }, act)
+    return paneTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, height: e.props.scroll.bodyRows, now, anim: ui.animations, pal, workers: shown, rows, durations, view, drafts }, act)
   })
 
   on('tool.call', { tool: 'mcp__a2a-mod__workers' }, async $ => {

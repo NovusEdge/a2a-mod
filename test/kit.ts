@@ -143,8 +143,23 @@ export function completedWith(text: string) {
 
 export const SURFACES = ['terminal', 'desktop'] as const
 
-export const PANE_PROPS = (bodyColumns = 60): RenderPropsOf['Pane'] =>
-  ({ title: 'A2A workers', isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} })
+export const PANE_PROPS = (bodyColumns = 60, bodyRows = 40): RenderPropsOf['Pane'] =>
+  ({ title: 'A2A workers', isFocused: true, bodyColumns, placement: 'dock', scroll: { offset: 0, bodyRows }, view: {} })
+
+/** The text under a node, as drawn left to right. */
+export const textUnder = (n: unknown): string =>
+  typeof n === 'string' ? n : ((n as Node | undefined)?.children ?? []).map(textUnder).join('')
+
+/** The innermost Box whose text holds `needle`: one drawn line, or a block when the text spans lines. */
+export function boxWith(n: unknown, needle: string): Node | undefined {
+  if (!n || typeof n !== 'object') return undefined
+  const node = n as Node
+  for (const c of node.children ?? []) {
+    const hit = boxWith(c, needle)
+    if (hit) return hit
+  }
+  return node.type === 'Box' && textUnder(node).includes(needle) ? node : undefined
+}
 
 /**
  * Answers, beneath every plugin, what the engine answers in a session's UI: its own drawing
@@ -183,7 +198,7 @@ export function promptLog(on: On) {
   return seen
 }
 
-type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
+export type Node = { type?: string; props?: Record<string, unknown>; children?: unknown[] }
 
 export function clientKeys(tree: unknown): string[] {
   const n = tree as Node
@@ -202,7 +217,10 @@ export function widthOf(tree: unknown): number {
     case 'Text': return kids.reduce<number>((a, c) => a + widthOf(c), 0)
     case 'Button': return [...String(n.props?.label ?? '')].length + 4
     case 'Client': return Number(n.props?.width ?? 0)
-    case 'Box': return n.props?.flexDirection === 'column' ? Math.max(0, ...kids.map(widthOf)) : kids.reduce<number>((a, c) => a + widthOf(c), 0)
+    case 'Box': {
+      const inner = n.props?.flexDirection === 'column' ? Math.max(0, ...kids.map(widthOf)) : kids.reduce<number>((a, c) => a + widthOf(c), 0)
+      return inner + (n.props?.borderStyle ? 2 : 0) + 2 * Number(n.props?.paddingX ?? 0)
+    }
     default: return 0
   }
 }

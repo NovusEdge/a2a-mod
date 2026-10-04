@@ -1,7 +1,7 @@
 import { test, expect, mock, type Engine, type MockClock, type Plugin } from 'claude-code/testing'
 import { RECENT_MAX, SHOW_MS } from '../hooks/recent.ts'
 import type { RenderSurface } from 'claude-code'
-import { completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, PANE_PROPS, promptLog, runA2a, STORE, SURFACES, widthOf, WITH_TOKEN } from './kit.ts'
+import { boxWith, completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, PANE_PROPS, promptLog, runA2a, STORE, SURFACES, textUnder, widthOf, WITH_TOKEN, type Node } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 
 const SLOW_ID = f.v1_send_slow.result.task.id
@@ -30,7 +30,8 @@ for (const surface of SURFACES) {
     mock.store(on)
     engineUi(on)
     const ui = await mountPane($, surface)
-    expect(await ui.find({ type: 'Text', text: /No workers yet\. \/a2a add <url>/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'No workers yet' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '/a2a add <url>' })).toBeDefined()
   })
 
   test(`a running row animates; Cancel calls CancelTask, shows canceling…, and Claude hears canceled on ${surface}`, WITH_TOKEN, async ($, on) => {
@@ -164,7 +165,7 @@ for (const surface of SURFACES) {
     mock.store(on, STORE)
     engineUi(on, { theme: new Error('config.list refused') })
     const ui = await mountPane($, surface)
-    expect(await ui.find({ type: 'Text', text: ' · A2A 1.0' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'A2A 1.0' })).toBeDefined()
   })
 
   test(`a copy that fails says why on ${surface}`, WITH_TOKEN, async ($, on) => {
@@ -188,7 +189,7 @@ for (const surface of SURFACES) {
     await runA2a($, 'remove fake')
     const ui = await mountPane($, surface)
     expect(await shows(ui, 'worker removed')).toBe(true)
-    expect(await ui.find({ type: 'Text', text: / · removed/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'removed' })).toBeDefined()
     expect(await ui.find({ type: 'Button', key: `cancel:${ASK_ID}` })).toBeUndefined()
   })
 
@@ -312,4 +313,106 @@ test('tracking a task never opens the pane', WITH_TOKEN, async ($, on) => {
   await sendAndWait($, clock, 'slow 60 build')
   await clock.advance(10_000)
   expect(seen.opened).toEqual([])
+})
+
+const TWO = { workers: { ...STORE.workers, slow: { ...STORE.workers.fake, alias: 'slow', name: 'Slow Worker', addedAt: 1 } } }
+
+// A waiting task and a running one under two workers, so the pane has every kind of line.
+async function busyPane($: Engine, on: Parameters<typeof mock.store>[0], cols: number) {
+  mock.store(on, TWO)
+  // A running row's client counts elapsed time from the real clock.
+  const clock = mock.clock(on, { now: Date.now() })
+  engineUi(on)
+  let n = 0
+  fakeNet(on, { send: () => (n++ ? f.v1_send_slow : f.v1_send_ask), get: (b: { params: { id: string } }) => (b.params.id === ASK_ID ? f.v1_get_input_required : f.v1_get_working) })
+  await sendAndWait($, clock, 'ask colour')
+  await sendAndWait($, clock, 'slow 60 build')
+  return mountPane($, 'terminal', cols)
+}
+
+for (const cols of [32, 24]) {
+  const inner = cols - 2
+  const content = cols - 6
+
+  test(`the pane at ${cols} columns never draws a line wider than the body`, WITH_TOKEN, async ($, on) => {
+    const ui = await busyPane($, on, cols)
+    for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(cols)
+    await ui.press({ key: `reply:${ASK_ID}` })
+    await ui.press({ key: `open:${ASK_ID}` })
+    for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(cols)
+  })
+
+  test(`the header, rule, worker head and task row fill the width at ${cols} columns`, WITH_TOKEN, async ($, on) => {
+    const ui = await busyPane($, on, cols)
+    const tree = await ui.drawn()
+    expect(widthOf(boxWith(tree, 'a2a'))).toBe(inner)
+    expect(await ui.find({ type: 'Text', text: '─'.repeat(inner) })).toBeDefined()
+    expect(widthOf(boxWith(tree, 'A2A 1.0'))).toBe(content)
+    const rows = await drawnAll(ui)
+    const row = rows.find(t => textUnder(t).includes('slow 60'))
+    expect(widthOf(boxWith(row, 'slow 60'))).toBe(content)
+  })
+
+  test(`each worker sits in a rounded, dim-bordered box at ${cols} columns`, WITH_TOKEN, async ($, on) => {
+    const ui = await busyPane($, on, cols)
+    const boxes = (await ui.findAll({ type: 'Box' })).filter(b => b.props.borderStyle === 'round')
+    expect(boxes.length).toBe(2)
+    for (const b of boxes) expect(b.props).toMatchObject({ borderColor: 'inactive', paddingX: 1 })
+  })
+}
+
+test('the header counts workers and live tasks, in a shorter form when the width is short', WITH_TOKEN, async ($, on) => {
+  const wide = await busyPane($, on, 32)
+  expect(await wide.find({ type: 'Text', text: '2 workers · 2 live' })).toBeDefined()
+  await wide.unmount()
+  const slim = await mountPane($, 'terminal', 24)
+  expect(await slim.find({ type: 'Text', text: '2w · 2 live' })).toBeDefined()
+  await slim.unmount()
+  const tiny = await mountPane($, 'terminal', 14)
+  expect(await tiny.find({ type: 'Text', text: '2 live' })).toBeDefined()
+})
+
+test('the header counts one worker with nothing live', WITH_TOKEN, async ($, on) => {
+  mock.store(on, STORE)
+  engineUi(on)
+  const ui = await mountPane($, 'terminal', 32)
+  expect(await ui.find({ type: 'Text', text: '1 worker' })).toBeDefined()
+})
+
+test('the footer has the add hint and, from 28 columns, the key hints after a rule', WITH_TOKEN, async ($, on) => {
+  const dock = await busyPane($, on, 32)
+  expect(await dock.find({ type: 'Text', text: '/a2a add <url>' })).toBeDefined()
+  expect(await dock.find({ type: 'Text', text: 'tab move · enter · esc' })).toBeDefined()
+  expect((await dock.findAll({ type: 'Text', text: '─'.repeat(30) })).length).toBe(2)
+  await dock.unmount()
+  const wide = await mountPane($, 'terminal', 40)
+  expect(await wide.find({ type: 'Text', text: 'tab move · enter press · esc back' })).toBeDefined()
+  await wide.unmount()
+  const edge = await mountPane($, 'terminal', 28)
+  expect(await edge.find({ type: 'Text', text: 'tab move · enter · esc' })).toBeDefined()
+  await edge.unmount()
+  const slim = await mountPane($, 'terminal', 27)
+  expect(await slim.find({ type: 'Text', text: '/a2a add <url>' })).toBeDefined()
+  expect(await slim.find({ type: 'Text', text: /tab move/ })).toBeUndefined()
+})
+
+test('the body grows to the pane height, so the footer sits at the bottom', WITH_TOKEN, async ($, on) => {
+  mock.store(on, STORE)
+  engineUi(on)
+  const ui = await $.ui.mount({ plugin: 'a2a-mod', surface: 'terminal', component: 'Pane', requestId: 'a2a-workers', props: PANE_PROPS(32, 30) })
+  const root = (await ui.drawn()) as Node
+  expect(root.props).toMatchObject({ minHeight: 30, paddingX: 1, paddingTop: 1 })
+  expect((root.children ?? []).some(c => (c as Node).type === 'Box' && (c as Node).props?.flexGrow === 1)).toBe(true)
+})
+
+test('the empty pane is centred and says how to add a worker', async ($, on) => {
+  mock.store(on)
+  engineUi(on)
+  const ui = await mountPane($, 'terminal', 32)
+  expect(await ui.find({ type: 'Text', text: 'Claude ┄┄ ·' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'No workers yet' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '/a2a add <url>' })).toBeDefined()
+  const root = (await ui.drawn()) as Node
+  expect(root.props).toMatchObject({ alignItems: 'center', justifyContent: 'center' })
+  expect(widthOf(root)).toBeLessThanOrEqual(32)
 })
