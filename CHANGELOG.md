@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `add_worker` and `remove_worker` tools: Claude can register and forget a worker. Each call opens a dialog the user answers, in every permission mode; Cancel, a dismissed dialog or a `-p` run changes nothing. A tool-added worker uses the `tokens` setting only. Token commands, token files and `--trust-endpoint` stay in the user's own `/a2a add`.
+
+### Fixed
+
+- `/a2a remove` now also drops the worker's run-time history, so a worker added again under the same alias starts without the old averages.
+
 ## [0.2.0] - 2026-10-04
 
 ### Changed

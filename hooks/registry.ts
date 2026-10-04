@@ -70,6 +70,15 @@ export async function loadWorkers(host: Host): Promise<Record<string, Worker>> {
   return ((await host.readWorkers()) as Record<string, Worker> | undefined) ?? {}
 }
 
+/** The worker, or the sentence for Claude when there is none by that alias. */
+export async function workerOr(host: Host, alias: unknown): Promise<Worker | string> {
+  const all = await loadWorkers(host)
+  const w = typeof alias === 'string' ? all[alias] : undefined
+  if (w) return w
+  const names = Object.keys(all)
+  return names.length ? `No worker named ${String(alias)}. Known workers: ${names.join(', ')}.` : 'No workers registered. Ask the user to run /a2a add <url>.'
+}
+
 export async function saveWorker(host: Host, w: Worker): Promise<void> {
   await host.writeWorkers({ ...(await loadWorkers(host)), [w.alias]: w })
   forgetToken(w)

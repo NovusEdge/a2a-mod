@@ -16,7 +16,8 @@ export const USAGE = [
 
 const NO_TOKEN_FLAG = 'a2a: --token is not accepted, because slash commands are kept in the transcript. Use the tokens plugin setting (the default), --token-cmd or --token-file.'
 
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'worker'
+// Cut at 40: a card name is the worker's own text, and the alias is stored and shown everywhere.
+export const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40).replace(/-$/, '') || 'worker'
 
 export function configureHint(alias: string): string {
   return [
@@ -61,22 +62,40 @@ async function add(host: Host, words: string[]): Promise<string> {
   if (auth.kind === 'cmd' && !splitArgs(auth.cmd).length) return 'a2a: --token-cmd needs a command.'
   const [url, alias] = rest
   if (!url) return USAGE
-  const { cardUrl, card } = await discover(host.fetch, url)
-  const endpointOrigin = new URL(card.endpoint).origin
-  const w: Worker = {
-    ...card, cardUrl, alias: alias ?? slug(card.name), addedAt: Date.now(), auth,
-    ...(trust ? { trustedOrigin: endpointOrigin } : {}),
-  }
+  const fetched = await fetchWorker(host, url, alias, auth)
+  const w: Worker = trust ? { ...fetched, trustedOrigin: new URL(fetched.endpoint).origin } : fetched
   await saveWorker(host, w)
+  return [`Added worker:\n${describe(w, host.settingTokens.map)}`, ...tokenNotes(host, w)].join('\n\n')
+}
+
+/** Discovery and the Worker record that `/a2a add` and the add_worker tool both store. */
+export async function fetchWorker(host: Host, url: string, alias: string | undefined, auth: TokenSource): Promise<Worker> {
+  const { cardUrl, card } = await discover(host.fetch, url)
+  return { ...card, cardUrl, alias: alias ?? slug(card.name), addedAt: Date.now(), auth }
+}
+
+/** What the person has still to do before a stored worker can authenticate. */
+export function tokenNotes(host: Host, w: Worker): string[] {
   const notes: string[] = []
+  const endpointOrigin = new URL(w.endpoint).origin
   const hasSettingToken = w.alias in host.settingTokens.map
-  if (auth.kind === 'setting' && !hasSettingToken && w.needsAuth) {
+  if (w.auth.kind === 'setting' && !hasSettingToken && w.needsAuth) {
     notes.push(`${w.alias}'s card asks for authentication, and the tokens setting has no token for it yet.\n${configureHint(w.alias)}`)
   }
-  if ((auth.kind !== 'setting' || hasSettingToken) && endpointOrigin !== new URL(cardUrl).origin && !trust) {
+  if ((w.auth.kind !== 'setting' || hasSettingToken) && endpointOrigin !== new URL(w.cardUrl).origin && w.trustedOrigin !== endpointOrigin) {
     notes.push(`Its endpoint (${endpointOrigin}) is on another origin from its card, so the token is not sent until you re-add it with --trust-endpoint.`)
   }
-  return [`Added worker:\n${describe(w, host.settingTokens.map)}`, ...notes].join('\n\n')
+  return notes
+}
+
+/** Removes a worker and what the app kept about its runs. False when there is no such worker. */
+export async function forgetWorker(host: Host, alias: string): Promise<boolean> {
+  if (!(await removeWorker(host, alias))) return false
+  await noteRemoved(host, alias)
+  const { [alias]: _gone, ...durations } = await host.readDurations()
+  await host.writeDurations(durations)
+  await showStatus(host)
+  return true
 }
 
 export async function runCommand(host: Host, args: string): Promise<string> {
@@ -95,9 +114,7 @@ export async function runCommand(host: Host, args: string): Promise<string> {
         return `${workers}${warning}${tasks.length ? `\n\nRunning:\n${tasks.join('\n')}` : ''}`
       }
       case 'remove': {
-        if (!words[0] || !(await removeWorker(host, words[0]))) return `No worker named ${words[0] ?? '(none given)'}.`
-        await noteRemoved(host, words[0])
-        await showStatus(host)
+        if (!words[0] || !(await forgetWorker(host, words[0]))) return `No worker named ${words[0] ?? '(none given)'}.`
         return `Removed ${words[0]}.`
       }
       default: return USAGE

@@ -47,6 +47,32 @@ export function fakeNet(on: On, routes: Partial<Record<Route, Answer>> = {}) {
   return { calls, state }
 }
 
+/** mock.store that also lets the test read what the mod left in it: the test's own `$` has no store. */
+export function heldStore(on: On, entries: Record<string, unknown> = {}) {
+  const held = new Map(Object.entries(entries))
+  on('store.get', async (_$, e) => ({ value: held.get(e.key) }))
+  on('store.set', async (_$, e) => { held.set(e.key, e.value); return { value: undefined } })
+  on('store.delete', async (_$, e) => { held.delete(e.key); return { value: undefined } })
+  on('store.keys', async () => ({ value: [...held.keys()] }))
+  return (key: string) => held.get(key) as Record<string, any> | undefined
+}
+
+/**
+ * Answers the engine's AskUserQuestion dialog, which is what `$.ui.ask` raises. An Error stands
+ * for a dismissed dialog or a -p run, where the ask rejects.
+ */
+export function answerAsk(on: On, answer: string | Error) {
+  type Q = { question: string; header: string; options: { label: string }[] }
+  const asked: { question: string; header: string; options: string[] }[] = []
+  on('tool.call', { tool: 'AskUserQuestion' }, async (_$, e) => {
+    const q = (e as unknown as { questions: Q[] }).questions[0]!
+    asked.push({ question: q.question, header: q.header, options: q.options.map(o => o.label) })
+    if (answer instanceof Error) throw answer
+    return { result: { questions: [q], answers: { [q.question]: answer } } } as never
+  })
+  return asked
+}
+
 export const ran = (stdout: string, exitCode = 0): { value: ProcessRunResult } =>
   ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
 
