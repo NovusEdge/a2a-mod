@@ -1,7 +1,7 @@
 import type { ElementTable, RenderElement, RenderSurface } from 'claude-code'
 import type { RecentState, Worker } from '../../types/index.d.ts'
 import { printable } from '../format.ts'
-import { isRunning } from '../recent.ts'
+import { isRunning, isWaiting } from '../recent.ts'
 import type { Palette } from './color.ts'
 import { cellLen, lines, rowLines, splitLine, stillTick, wrap, type RowProps } from './draw.tsx'
 import { fit, gradient, type Cell } from './fx.ts'
@@ -99,7 +99,16 @@ function resultBody(el: CardEls, d: ResultCard, clientKey: string): RenderElemen
 
 export type WakeNote = { worker: string; taskId: string | undefined; state: RecentState | undefined; body: string }
 
-const WAKE_HEAD = /^A2A (task|tasks) finished:\n\n/
+// The engine may hand a plugin's prompt over framed: "The <name> plugin sent a message:" before it
+// and an explanation of the prompt after it. Neither is the tracker's text.
+const WAKE_HEAD = /^(?:[^\n]*plugin sent a message:\s*)?A2A (task|tasks) finished:\n\n/
+const WAKE_TAIL = /\n+This is how Claude Code surfaces a prompt a plugin submits[\s\S]*$/
+
+/** A result as a person reads it: without the summary line ("fake task t is failed (contextId c).") Claude reads above it. */
+export function bodyOf(text: string): string {
+  const head = /^\S+ (?:task \S+ is [a-z-]+|replied)(?: \(contextId [^)]*\))?[.:](?:\n\n|$)/.exec(text)
+  return head ? text.slice(head[0].length) : text
+}
 // A worker's result may hold its own `---` rule, so a split needs the next note to open the way
 // describeOutcome and the tracker write one: `a task t is state`, `a task t:` or `a replied`.
 const NOTE_BREAK = /\n\n---\n\n(?=\S+ (?:replied[ :]|task [^\s:]+(?: is [a-z-]+[ .(]|:)))/
@@ -108,7 +117,7 @@ const NOTE_BREAK = /\n\n---\n\n(?=\S+ (?:replied[ :]|task [^\s:]+(?: is [a-z-]+[
 export function wakeNotes(text: string): WakeNote[] | undefined {
   const head = WAKE_HEAD.exec(text)
   if (!head) return undefined
-  const rest = printable(text.slice(head[0].length))
+  const rest = printable(text.slice(head[0].length)).replace(WAKE_TAIL, '')
   // The tracker writes the singular head for exactly one note.
   return (head[1] === 'task' ? [rest] : rest.split(NOTE_BREAK)).map(note => {
     const id = /^(\S+) task ([^\s:]+)/.exec(note)
@@ -155,13 +164,20 @@ export function resultCard(el: CardEls, d: ResultCard): RenderElement {
   const b = badge(d.state, d.isErrored)
   // The tool result Claude reads says "do not poll"; the person sees what it means for them.
   const tracked = `tracked${d.taskId ? ` · task ${printable(d.taskId).slice(0, 8)}` : ''} · you'll be told when it lands`
+  // Likewise the summary line above the worker's words is for Claude; the person gets the words alone.
+  const body = bodyOf(d.text)
+  const asking = d.state !== undefined && isWaiting(d.state)
+  const pointer = `${d.taskId ? `task ${printable(d.taskId).slice(0, 8)} · ` : ''}reply in the a2a pane`
   return (
     <Box {...frame(d.width)}>
       <Text color={b.color}>{fit(b.label, Math.max(1, d.width - INSET))}</Text>
       <Box marginLeft={2} flexDirection="column">
         {d.state && isRunning(d.state)
           ? wrap(tracked, Math.max(1, d.width - INSET - 2), 4).map(line => <Text color="inactive">{line}</Text>)
-          : resultBody(el, d, 'type')}
+          : [
+            ...(body ? [resultBody(el, { ...d, text: body }, 'type')] : []),
+            ...(asking ? wrap(pointer, Math.max(1, d.width - INSET - 2), 2).map(line => <Text color="inactive">{line}</Text>) : []),
+          ]}
       </Box>
     </Box>
   )
