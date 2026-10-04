@@ -1,8 +1,8 @@
 ---
 title: The UI
 description: The workers pane, three layouts and animations are designed and in progress.
-order: 9
-section: Reference
+order: 3
+section: Start
 ---
 
 ## Coming: the look

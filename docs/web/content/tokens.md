@@ -1,9 +1,11 @@
 ---
 title: Worker tokens
 description: A worker gets a bearer token from one of three sources, chosen per worker when you add it.
-order: 4
+order: 5
 section: Use
 ---
+
+Most real workers want a bearer token. You never paste it into Claude. When you add the worker, you tell the mod which of three places to read it from.
 
 ## Three sources
 
@@ -25,7 +27,7 @@ claude plugin configure a2a-mod@a2a-mod --values-stdin <<< '{"tokens":"w1=<token
 
 This replaces the whole setting, so list every worker in it: `"w1=<token> w2=<token>"`.
 
-If the plugin id is not `a2a-mod@a2a-mod`, use the id that `claude plugin list` shows.
+If the mod's id is not `a2a-mod@a2a-mod`, use the id that `claude plugin list` shows.
 
 If any word in the setting is not `alias=token`, the mod ignores the whole setting, and `/a2a list` prints a warning.
 
@@ -51,7 +53,7 @@ The command line is stored and shown by `/a2a list`. Its output is never shown. 
 
 ## Where a token goes
 
-A token goes only to the origin of the worker's Agent Card. If the card points to an endpoint on another origin, the mod withholds the token until you re-add the worker with `--trust-endpoint`.
+A token goes only to the origin of the worker's Agent Card. If the card points to an endpoint on another origin, the mod withholds the token until you re-add the worker with `--trust-endpoint`. That flag allows the token to go to an endpoint on another origin than the card, and it is separate from the three sources.
 
 ## Never type a token
 

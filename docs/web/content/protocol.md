@@ -1,9 +1,11 @@
 ---
 title: Protocol support
 description: Which A2A versions and bindings the mod speaks, and what it leaves out.
-order: 7
+order: 9
 section: Reference
 ---
+
+For people building workers: what the mod needs from your Agent Card and endpoint. In short: A2A 1.0 or 0.3, the JSON-RPC binding, a send that returns immediately, and `GetTask` for polling. [Write a worker](/write-a-worker) has a working example.
 
 ## Versions
 

@@ -1,31 +1,40 @@
 ---
 title: Overview
-description: Claude hands tasks to non-Claude agents over A2A, keeps working, and picks up the results when they land.
+description: Hand a task to another AI agent from Claude Code. Claude keeps working and gets the result when it lands.
 order: 1
 section: Start
 ---
 
-## What it does
+a2a-mod lets Claude Code hand a task to another AI agent and keep working while that agent runs. When the agent finishes, Claude gets the result and picks up where it left off. The agents speak A2A (Agent2Agent), an open protocol that lets agents built on different frameworks talk to each other; here we call such an agent a *worker*: an ADK, AG2 or LangGraph agent, or anything built on @a2a-js/sdk.
 
-a2a-mod is a Claude Code mod. It lets Claude send tasks to other agents over the Agent2Agent (A2A) protocol. Any A2A 1.0 or 0.3 worker can take the job: ADK, AG2, LangGraph, @a2a-js/sdk and others.
+## What it looks like
 
-Claude drives and the worker does the hands-on work. A slow task never blocks Claude. If the worker has not finished after a few seconds, the mod tracks the task in the background and hands Claude a task id. When the task finishes, the mod wakes Claude with the result.
-
-## Install
-
-In Claude Code:
+You add a worker once. After that you ask Claude to use it in plain words:
 
 ```text title="claude code"
-/plugin marketplace add NovusEdge/a2a-mod
-/plugin install a2a-mod@a2a-mod
+/a2a add http://127.0.0.1:41241 fake
+send "slow 20 build" to the fake worker
+  fake is working on it (task 3f9a…, working). Carry on with other work.
+  A2A task finished: fake task 3f9a… is completed. done: build
 ```
 
-This needs Claude Code 2.1.287 or later, the first release with mods.
+The last two lines are what Claude sees. A slow task never blocks Claude: after a few seconds it gets a task id and moves on, and the mod wakes it when the worker is done. [How it works](/how-it-works) has the details.
+
+## Words used in these docs
+
+- **Worker**: an agent that takes tasks over A2A. You register it with `/a2a add`.
+- **Agent Card**: the JSON file a worker publishes at `/.well-known/agent-card.json`. It names the worker, lists its skills and says where to send requests.
+- **Task**: one piece of work you gave a worker. It has an id and a state, such as `working` or `completed`.
+- **Wake**: the message the mod sends Claude when a background task ends. It starts `A2A task finished:`.
 
 ## Where to go next
 
 - [Quick start](/quick-start) runs the repo's fake worker, so you can try the mod without a real agent.
+- [The UI](/ui) covers the status line, the workers pane and the layouts.
 - [Commands and tools](/commands) covers `/a2a` and the three tools Claude sees.
 - [Worker tokens](/tokens) explains how a worker gets its bearer token.
 - [How it works](/how-it-works) follows a task from `send` to the wake-up.
 - [Troubleshooting](/troubleshooting) lists the messages the mod prints and what to do about each.
+- [Write a worker](/write-a-worker) builds a minimal worker with @a2a-js/sdk.
+- [Protocol support](/protocol) lists the A2A versions, methods and limits.
+- [Security](/security) says where tokens are kept and how to report a vulnerability.

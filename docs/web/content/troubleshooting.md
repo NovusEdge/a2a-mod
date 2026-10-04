@@ -1,11 +1,11 @@
 ---
 title: Troubleshooting
 description: Each message the mod prints, what it means, and what to do about it.
-order: 6
+order: 7
 section: Use
 ---
 
-Errors from `/a2a` and from the tools start with `a2a:`. The tables leave that prefix out. Text in angle brackets, like `<alias>`, stands for a value.
+Find the message you got and read the fix. Most errors start with `a2a:`, which the tables leave out. A few do not: the notices about unknown workers, the warning from `/a2a list`, the notes after `add`, and the background-task messages. Text in angle brackets, like `<alias>`, stands for a value.
 
 ## Adding a worker
 

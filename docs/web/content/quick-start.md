@@ -5,9 +5,11 @@ order: 2
 section: Start
 ---
 
+No real agent needed. Run the fake worker that ships with the repo, register it, and send it a slow task to watch the result come back on its own.
+
 ## Start the fake worker
 
-The repo ships a fake worker that echoes, waits, or asks a question back. It needs Node 24 and pnpm.
+The fake worker echoes, waits, or asks a question back. It needs Node 24 and pnpm.
 
 ```sh title="shell"
 git clone https://github.com/NovusEdge/a2a-mod && cd a2a-mod
@@ -28,14 +30,22 @@ The mod fetches the worker's Agent Card and registers it under the alias `fake`.
 
 ## Ask Claude to use it
 
+Give Claude these two prompts, one after the other:
+
 ```text title="claude code"
-use the fake worker
-use it on slow 20 build
+list the a2a workers
+send "slow 20 build" to the fake worker
 ```
 
 The first prompt gets an inline reply that lists the worker and its skills.
 
-The second is a task that takes 20 seconds. Claude gets a task id back after about 7 seconds and carries on. The status line shows `a2a: 1 running`. When the worker finishes, the mod wakes Claude with the result.
+The second is a task that takes 20 seconds. Claude gets a task id back after about 7 seconds and carries on. The status line shows the task while it runs:
+
+```text title="status line"
+a2a ⠋ fake slow 20 build 0:12
+```
+
+When the worker finishes, the line reads `a2a ✓ fake done 0:20` for 5 seconds, and the mod wakes Claude with the result.
 
 ## What the fake worker understands
 
@@ -47,4 +57,4 @@ The second is a task that takes 20 seconds. Claude gets a task id back after abo
 
 ## Next
 
-[Commands and tools](/commands) has the full list of `/a2a` subcommands. To point the mod at a real worker that needs a token, read [Worker tokens](/tokens).
+[Commands and tools](/commands) has the full list of `/a2a` subcommands. To point the mod at a real worker that needs a token, read [Worker tokens](/tokens). To build your own worker, read [Write a worker](/write-a-worker).

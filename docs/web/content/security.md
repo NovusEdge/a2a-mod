@@ -1,9 +1,11 @@
 ---
 title: Security
 description: Where worker tokens are kept, what counts as a vulnerability, and how to report one.
-order: 8
+order: 10
 section: Reference
 ---
+
+Report vulnerabilities privately through a GitHub security advisory. This page also covers where your worker tokens are stored and what counts as a vulnerability.
 
 ## Reporting
 
