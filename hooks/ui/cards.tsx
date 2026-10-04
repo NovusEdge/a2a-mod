@@ -97,65 +97,10 @@ function resultBody(el: CardEls, d: ResultCard, clientKey: string): RenderElemen
     : <Text>{d.text}</Text>
 }
 
-export type WakeNote = { worker: string; taskId: string | undefined; state: RecentState | undefined; body: string }
-
-// The engine may hand a plugin's prompt over framed: "The <name> plugin sent a message:" before it
-// and an explanation of the prompt after it. Neither is the tracker's text.
-const WAKE_HEAD = /^(?:[^\n]*plugin sent a message:\s*)?A2A (task|tasks) finished:\n\n/
-const WAKE_TAIL = /\n+This is how Claude Code surfaces a prompt a plugin submits[\s\S]*$/
-
 /** A result as a person reads it: without the summary line ("fake task t is failed (contextId c).") Claude reads above it. */
 export function bodyOf(text: string): string {
   const head = /^\S+ (?:task \S+ is [a-z-]+|replied)(?: \(contextId [^)]*\))?[.:](?:\n\n|$)/.exec(text)
   return head ? text.slice(head[0].length) : text
-}
-// A worker's result may hold its own `---` rule, so a split needs the next note to open the way
-// describeOutcome and the tracker write one: `a task t is state`, `a task t:` or `a replied`.
-const NOTE_BREAK = /\n\n---\n\n(?=\S+ (?:replied[ :]|task [^\s:]+(?: is [a-z-]+[ .(]|:)))/
-
-/** The notes of a wake prompt the tracker wrote, or undefined for any other text. */
-export function wakeNotes(text: string): WakeNote[] | undefined {
-  const head = WAKE_HEAD.exec(text)
-  if (!head) return undefined
-  const rest = printable(text.slice(head[0].length)).replace(WAKE_TAIL, '')
-  // The tracker writes the singular head for exactly one note.
-  return (head[1] === 'task' ? [rest] : rest.split(NOTE_BREAK)).map(note => {
-    const id = /^(\S+) task ([^\s:]+)/.exec(note)
-    const said = /^\S+ task \S+ is ([a-z-]+)/.exec(note)?.[1] as RecentState | undefined
-    const gap = note.indexOf('\n\n')
-    return {
-      worker: id?.[1] ?? note.split(' ')[0] ?? '',
-      taskId: id?.[2],
-      state: said && said in STATES ? said : undefined,
-      body: gap < 0 ? note : note.slice(gap + 2),
-    }
-  })
-}
-
-export type WakeCard = { surface: RenderSurface; width: number; anim: boolean; pal: Palette; notes: (WakeNote & { played: boolean })[] }
-
-/** One box per task the wake prompt reports: `⇠ alias` with the state at the right, then its result indented. */
-export function wakeCard(el: CardEls, d: WakeCard): RenderElement {
-  const { Box } = el
-  const inner = Math.max(1, d.width - INSET)
-  return (
-    <Box flexDirection="column">
-      {d.notes.map(n => {
-        const b = badge(n.state, false)
-        // Without a task id nothing tells one wake's note from another's, so it never types in.
-        const playId = n.taskId ?? ''
-        const left: Cell[] = [{ text: '⇠ ', color: 'inactive' }, ...gradient(fit(n.worker, Math.min(24, Math.max(1, inner - cellLen([{ text: b.label }]) - 3))), 0, d.pal)]
-        return (
-          <Box {...frame(d.width)}>
-            {splitLine(el, left, [{ text: b.label, color: b.color }], inner)}
-            <Box marginLeft={2} flexDirection="column">
-              {resultBody(el, { surface: d.surface, width: d.width, anim: d.anim, state: n.state, isErrored: false, text: n.body, playId, played: n.played || !n.taskId }, `type:${playId}`)}
-            </Box>
-          </Box>
-        )
-      })}
-    </Box>
-  )
 }
 
 /** A state badge, then the result indented; a completed result types itself in once, and a tracked task reads as a line for a person. */

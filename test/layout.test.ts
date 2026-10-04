@@ -1,5 +1,5 @@
 import { test, expect, mock, type Plugin } from 'claude-code/testing'
-import { BAND_PROPS, CALL_IDS, completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, PANE_PROPS, promptLog, runA2a, STORE } from './kit.ts'
+import { BAND_PROPS, CALL_IDS, completedWith, drawnAll, engineUi, expectNoToken, fakeNet, PANE_PROPS, promptLog, runA2a, STORE } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 import type { Layout } from '../hooks/ui/settings.ts'
 
@@ -20,7 +20,7 @@ for (const layout of ['full', 'pane', 'minimal'] as const) {
     mock.store(on, STORE)
     const clock = mock.clock(on)
     const seen = engineUi(on)
-    const woke = promptLog(on)
+    promptLog(on)
     const statuses: (string | undefined)[] = []
     on('ui.status', async (_$, e) => { statuses.push(e.text); return { value: undefined } })
     let done = false
@@ -43,8 +43,6 @@ for (const layout of ['full', 'pane', 'minimal'] as const) {
 
     done = true
     await clock.advance(5000)
-    const wake = await $.ui.mount({ plugin: 'a2a-mod', surface: 'terminal', component: 'UserMessage', props: { text: woke.at(-1)!.text, origin: { kind: 'plugin', name: 'a2a-mod' }, isExpanded: false } })
-    expect(!!(await wake.find(engine('UserMessage')))).toBe(!want.cards)
 
     await runA2a($)
     expect(seen.opened).toEqual(want.pane ? ['a2a-workers'] : [])
@@ -75,7 +73,7 @@ test('with animations off every client frame stays still and nothing types itsel
   mock.store(on, STORE)
   const clock = mock.clock(on)
   engineUi(on)
-  const woke = promptLog(on)
+  promptLog(on)
   let done = false
   fakeNet(on, { send: f.v1_send_slow, get: () => (done ? doneSlow : f.v1_get_working) })
   const p = $.tool.call({ tool: SEND, worker: 'fake', message: 'slow 60 build' })
@@ -93,9 +91,6 @@ test('with animations off every client frame stays still and nothing types itsel
   }
   done = true
   await clock.advance(5000)
-  const wake = await $.ui.mount({ plugin: 'a2a-mod', surface: 'terminal', component: 'UserMessage', props: { text: woke.at(-1)!.text, origin: { kind: 'plugin', name: 'a2a-mod' }, isExpanded: false } })
-  expect(has(await wake.drawn(), 'Client')).toBe(false)
-  expect(await wake.find({ type: 'Text', text: 'echo: hi' })).toBeDefined()
 })
 
 test('no drawn tree on any surface shows the token, wherever the worker echoed it', { options: { tokens: 'fake=s3cret' }, plugins: [CALL_IDS] }, async ($, on) => {
@@ -132,12 +127,11 @@ test('no drawn tree on any surface shows the token, wherever the worker echoed i
       await $.ui.mount({ plugin: 'a2a-mod', surface, component: 'ToolResult', props: { tool_use_id: slowId!, tool: SEND, output: slowResult, isErrored: false } }),
       await $.ui.mount({ plugin: 'a2a-mod', surface, component: 'ToolResult', props: { tool_use_id: askId!, tool: SEND, output: askResult, isErrored: false } }),
       await $.ui.mount({ plugin: 'a2a-mod', surface, component: 'AbovePrompt', props: BAND_PROPS() }),
-      await $.ui.mount({ plugin: 'a2a-mod', surface, component: 'UserMessage', props: { text: woke.at(-1)!.text, origin: { kind: 'plugin', name: 'a2a-mod' }, isExpanded: false } }),
     ]
     for (const ui of mounts) {
       await expectNoToken(ui)
       await ui.unmount()
     }
   }
-  expect(woke.at(-1)!.text).toContain('[token]')
+  expect(woke.at(-1)!.text).not.toContain('s3cret')
 })

@@ -38,7 +38,7 @@ The last two lines are what Claude sees. A slow task never blocks Claude: after 
 - **Worker**: an agent that takes tasks over A2A. You register it with `/a2a add`.
 - **Agent Card**: the JSON file a worker publishes at `/.well-known/agent-card.json`. It names the worker, lists its skills and says where to send requests.
 - **Task**: one piece of work you gave a worker. It has an id and a state, such as `working` or `completed`.
-- **Wake**: the message the mod sends Claude when a background task ends. It starts `A2A task finished:`.
+- **Wake**: the message the mod sends Claude when a background task ends. It shows as one line, such as `a2a: fake task 3f9a… completed`.
 
 ## Where to go next
 

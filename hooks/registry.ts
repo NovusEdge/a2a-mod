@@ -31,7 +31,8 @@ export type Host = {
   now(): Promise<number>
   every(ms: number, fn: () => void): Timer
   sleep(ms: number): Promise<void>
-  wake(text: string): Promise<void>
+  /** Wakes Claude: `text` is the one line the person sees, `detail` is read by Claude alone. */
+  wake(text: string, detail: string): Promise<void>
 }
 
 // `alias=token` pairs separated by whitespace. Not JSON: a JSON map inside the setting's own

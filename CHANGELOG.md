@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The message that wakes Claude shows as one short line (`a2a: fake task … completed`); the full result goes to Claude without filling the transcript. Claude Code never drew the wake card, so the old message showed as the engine's raw framed text.
+- The `send` result now tells Claude what the wake line looks like, that it comes from the mod and not the user, and to call `task` if it carries no result.
+
 ## [0.3.0] - 2026-10-04
 
 ### Added

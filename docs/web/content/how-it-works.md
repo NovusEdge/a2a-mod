@@ -41,15 +41,15 @@ The line updates once a second while anything runs. With animations off, the spi
 
 A task is live while the worker reports `submitted` or `working`. Any other state ends tracking: `completed`, `failed`, `canceled`, `rejected`, `input-required`, `auth-required`, or a state the mod does not recognise.
 
-When one or more tasks end, the mod submits one prompt to Claude. It starts `A2A task finished:` (or `A2A tasks finished:`) and lists each result, so Claude resumes without polling.
+When one or more tasks end, the mod submits one prompt to Claude. In the transcript it is one short line: `a2a: fake task 3f9a… completed`, or `a2a: 2 tasks finished (fake ✓, adk ?)` when several end together. The result is not in the line. The mod attaches it as context that Claude reads and you do not see, marked as a notice from the mod and not your words. If that context does not arrive, the `send` result has already told Claude to fetch the result with `task`.
 
-A task that ends in `input-required` wakes Claude too. Claude can answer by calling `send` with the same `taskId`.
+A task that ends in `input-required` wakes Claude too. The context says how to answer: call `send` with the same `taskId`.
 
 ## Lost contact
 
 A task is dropped when 6 polls of it fail in a row, and Claude is told:
 
-```text title="wake prompt"
+```text title="wake context"
 <alias> task <id>: lost contact with the worker after 6 failed checks. Use the task tool to try again.
 ```
 

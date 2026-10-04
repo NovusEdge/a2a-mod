@@ -41,8 +41,9 @@ test('two tasks finishing in one tick make one prompt, and both were kept', WITH
   const woke = prompts(on)
   let n = 0
   let done = false
-  const slow = () => JSON.parse(JSON.stringify(f.v1_send_slow).replace(/"id":"[^"]+"/, `"id":"t${++n}"`))
-  fakeNet(on, { send: slow, get: () => (done ? f.v1_get_completed : f.v1_get_working) })
+  const slow = () => JSON.parse(JSON.stringify(f.v1_send_slow).replaceAll(f.v1_send_slow.result.task.id, `t${++n}`))
+  const asked = (b: { params: { id: string } }) => JSON.parse(JSON.stringify(done ? f.v1_get_completed : f.v1_get_working).replaceAll(f.v1_send_slow.result.task.id, b.params.id))
+  fakeNet(on, { send: slow, get: asked })
   const a = $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message: 'slow 60 a' })
   const b = $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message: 'slow 60 b' })
   await clock.advance(7500)
@@ -50,7 +51,7 @@ test('two tasks finishing in one tick make one prompt, and both were kept', WITH
   done = true
   await clock.advance(5000)
   expect(woke.length).toBe(1)
-  expect((woke[0]!.match(/task /g) ?? []).length).toBe(2)
+  expect(woke[0]).toContain('2 tasks finished')
 })
 
 test('a worker that stops answering is dropped after six failures', WITH_TOKEN, async ($, on) => {
