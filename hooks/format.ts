@@ -12,7 +12,12 @@ export function printable(text: string): string {
     .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
     .replace(/\r\n?/g, '\n')
     .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
+    .replace(/(?![‌‍])\p{Cf}/gu, '')
 }
+
+// Bidi overrides can make an endpoint or a name read as another one. Zero-width joiners stay in
+// printable text because emoji sequences and some scripts need them, but a one-line field has no use for them.
+export const plain = (text: string): string => printable(text).replace(/\p{Cf}/gu, '')
 
 export function truncate(text: string, max = MAX): string {
   if (text.length <= max) return text

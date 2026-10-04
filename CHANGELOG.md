@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `add_worker` and `remove_worker` tools: Claude can register and forget a worker. Each call opens a dialog the user answers, in every permission mode; Cancel, a dismissed dialog or a `-p` run changes nothing. A tool-added worker uses the `tokens` setting only. Token commands, token files and `--trust-endpoint` stay in the user's own `/a2a add`.
 
+### Security
+
+- `add_worker` refuses to refresh a worker whose card or endpoint is on a different origin from the stored one, and to give a new worker an alias that already has a token in the `tokens` setting. Both need the user's own `/a2a add`. Before, a refresh could point a worker with a stored token at another host.
+- `add_worker` never cuts the endpoint origin in the dialog and refuses one over 100 characters. The dialog's Authentication line says whether a token would really be sent.
+- Aliases such as `constructor` or `toString` no longer match members of `Object.prototype` in the worker and token lookups; `__proto__` is refused as an alias.
+- `add_worker` tells Claude only "Could not read an Agent Card at that URL." when the fetch fails, so it cannot probe addresses through the HTTP status. `/a2a add` keeps the detail.
+- Unicode format characters (bidi overrides, zero-width spaces) are stripped from the dialog and from worker text shown to Claude and the user. Zero-width joiners stay in worker text.
+
 ### Fixed
 
 - `/a2a remove` now also drops the worker's run-time history, so a worker added again under the same alias starts without the old averages.

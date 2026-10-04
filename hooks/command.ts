@@ -1,6 +1,6 @@
 import type { TokenSource, Worker } from '../types/index.d.ts'
 import { discover, A2AError } from './client.ts'
-import { loadWorkers, removeWorker, saveWorker, splitArgs, type Host } from './registry.ts'
+import { BAD_ALIAS, loadWorkers, own, removeWorker, saveWorker, splitArgs, type Host } from './registry.ts'
 import { noteRemoved } from './recent.ts'
 import { runningTasks, showStatus } from './tracker.ts'
 
@@ -36,7 +36,7 @@ function source(auth: TokenSource): string {
 
 function describe(w: Worker, tokens: Readonly<Record<string, string>>): string {
   const skills = w.skills.map(s => `${s.id}: ${s.description || s.name}`).join('; ') || 'no skills listed'
-  const hasToken = w.needsAuth || w.auth.kind !== 'setting' || w.alias in tokens
+  const hasToken = w.needsAuth || w.auth.kind !== 'setting' || own(tokens, w.alias) !== undefined
   return `${w.alias}  ${w.name} (A2A ${w.version}${hasToken ? `, ${source(w.auth)}` : ''})\n    ${w.description}\n    skills: ${skills}`
 }
 
@@ -62,6 +62,7 @@ async function add(host: Host, words: string[]): Promise<string> {
   if (auth.kind === 'cmd' && !splitArgs(auth.cmd).length) return 'a2a: --token-cmd needs a command.'
   const [url, alias] = rest
   if (!url) return USAGE
+  if (alias === BAD_ALIAS) return `a2a: ${BAD_ALIAS} cannot be used as an alias.`
   const fetched = await fetchWorker(host, url, alias, auth)
   const w: Worker = trust ? { ...fetched, trustedOrigin: new URL(fetched.endpoint).origin } : fetched
   await saveWorker(host, w)
@@ -78,7 +79,7 @@ export async function fetchWorker(host: Host, url: string, alias: string | undef
 export function tokenNotes(host: Host, w: Worker): string[] {
   const notes: string[] = []
   const endpointOrigin = new URL(w.endpoint).origin
-  const hasSettingToken = w.alias in host.settingTokens.map
+  const hasSettingToken = own(host.settingTokens.map, w.alias) !== undefined
   if (w.auth.kind === 'setting' && !hasSettingToken && w.needsAuth) {
     notes.push(`${w.alias}'s card asks for authentication, and the tokens setting has no token for it yet.\n${configureHint(w.alias)}`)
   }

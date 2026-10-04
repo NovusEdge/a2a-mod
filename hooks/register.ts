@@ -6,7 +6,7 @@ import { runCommand, USAGE } from './command.ts'
 import { describeOutcome, FULL_MAX } from './format.ts'
 import { addWorkerTool, removeWorkerTool, type Confirm } from './manage.ts'
 import { changeRecent, isOpen, isWaiting, noteCall, noteSent, noteState, readRecent, visible } from './recent.ts'
-import { loadWorkers, noteFailure, parseTokens, targetOf, workerOr, type Host, type SettingTokens } from './registry.ts'
+import { loadWorkers, noteFailure, own, parseTokens, targetOf, workerOr, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
 import { bandRows, bandTree, nextRedraw } from './ui/band.tsx'
@@ -160,7 +160,7 @@ const toggled = (ids: string[] | undefined, id: string) => ((ids ?? []).includes
 const cardWidth = (columns: number | undefined) => Math.max(1, Math.min(100, (columns ?? 80) - 4))
 
 async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<void> {
-  const w = (await loadWorkers(host))[t.worker]
+  const w = own(await loadWorkers(host), t.worker)
   if (!w) { $.ui.toast(`a2a: ${t.worker} was removed.`); return }
   await changeRecent(host, t.taskId, held => held && { ...held, canceling: true })
   const until = Date.now() + PRESS_MS
@@ -179,7 +179,7 @@ async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<voi
 }
 
 async function replyFromPane($: Engine, host: Host, t: RecentTask, text: string): Promise<boolean> {
-  const w = (await loadWorkers(host))[t.worker]
+  const w = own(await loadWorkers(host), t.worker)
   if (!w) { $.ui.toast(`a2a: ${t.worker} was removed.`); return false }
   const until = Date.now() + PRESS_MS
   const never = new AbortController().signal
