@@ -1,6 +1,6 @@
 import { test, expect, mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { PromptOrigin, RenderSurface } from 'claude-code'
-import { engineUi, expectNoToken, fakeNet, promptLog, STORE, SURFACES, WITH_TOKEN } from './kit.ts'
+import { engineUi, expectNoToken, fakeNet, has, promptLog, STORE, SURFACES, WITH_TOKEN } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 import { wakeNotes } from '../hooks/ui/cards.tsx'
 
@@ -53,6 +53,18 @@ test('a note with no task id is never typed in, so two wakes cannot share a play
   const ui = await mountWake($, 'terminal', 'A2A task finished:\n\nfake stopped answering.')
   expect(await ui.find({ type: 'Client' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: 'fake stopped answering.' })).toBeDefined()
+})
+
+test('vscode and mobile wake cards draw the result without a Client', WITH_TOKEN, async ($, on) => {
+  mock.store(on, STORE)
+  const clock = mock.clock(on)
+  engineUi(on)
+  const text = await wakeText($, on, clock)
+  for (const surface of ['vscode', 'mobile'] as const) {
+    const ui = await mountWake($, surface, text)
+    expect(has(await ui.drawn(), 'Client')).toBe(false)
+    expect(await ui.find({ type: 'Text', text: 'echo: [token]' })).toBeDefined()
+  }
 })
 
 for (const surface of SURFACES) {

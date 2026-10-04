@@ -1,7 +1,7 @@
 import { test, expect, mock, type Engine, type MockClock, type Plugin } from 'claude-code/testing'
 import { SHOW_MS } from '../hooks/recent.ts'
 import type { RenderSurface } from 'claude-code'
-import { completedWith, drawnAll, engineUi, expectNoToken, fakeNet, PANE_PROPS, promptLog, runA2a, STORE, SURFACES, widthOf, WITH_TOKEN } from './kit.ts'
+import { completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, PANE_PROPS, promptLog, runA2a, STORE, SURFACES, widthOf, WITH_TOKEN } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 
 const SLOW_ID = f.v1_send_slow.result.task.id
@@ -269,6 +269,30 @@ test('the pane redraws when a finished row is due to age out', { ...WITH_TOKEN, 
   const before = draws()
   await clock.advance(SHOW_MS + 1000)
   expect(draws()).toBeGreaterThan(before)
+})
+
+test('vscode draws still rows and keeps Reply; mobile drops Reply and every Input', WITH_TOKEN, async ($, on) => {
+  mock.store(on, STORE)
+  const clock = mock.clock(on)
+  engineUi(on)
+  let n = 0
+  fakeNet(on, { send: () => (n++ ? f.v1_send_slow : f.v1_send_ask), get: (b: { params: { id: string } }) => (b.params.id === ASK_ID ? f.v1_get_input_required : f.v1_get_working) })
+  await sendAndWait($, clock, 'ask colour')
+  await sendAndWait($, clock, 'slow 60 build')
+
+  const vs = await mountPane($, 'vscode')
+  expect(has(await vs.drawn(), 'Client')).toBe(false)
+  await vs.press({ key: `reply:${ASK_ID}` })
+  expect(await vs.find({ type: 'Input', key: `input:${ASK_ID}` })).toBeDefined()
+  await vs.press({ key: `discard:${ASK_ID}` })
+
+  const mobile = await mountPane($, 'mobile')
+  const tree = await mobile.drawn()
+  expect(has(tree, 'Client')).toBe(false)
+  expect(has(tree, 'Input')).toBe(false)
+  expect(await mobile.find({ type: 'Button', key: `reply:${ASK_ID}` })).toBeUndefined()
+  expect(await mobile.find({ type: 'Button', key: `open:${ASK_ID}` })).toBeDefined()
+  expect(await mobile.find({ type: 'Button', key: `cancel:${ASK_ID}` })).toBeDefined()
 })
 
 test('/a2a opens the pane', async ($, on) => {

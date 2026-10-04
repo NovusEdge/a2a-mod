@@ -1,6 +1,6 @@
 import { test, expect, mock, type Engine, type MockClock, type Plugin } from 'claude-code/testing'
 import type { RenderElement, RenderSurface } from 'claude-code'
-import { BAND_PROPS, engineUi, expectNoToken, fakeNet, STORE, SURFACES, WITH_TOKEN } from './kit.ts'
+import { BAND_PROPS, engineUi, expectNoToken, fakeNet, has, STORE, SURFACES, WITH_TOKEN } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 import { BACK_MS, direction, nextRedraw } from '../hooks/ui/band.tsx'
 import { SHOW_MS } from '../hooks/recent.ts'
@@ -104,6 +104,20 @@ for (const surface of SURFACES) {
     expect(await ui.drawn()).toEqual({ type: 'Text', props: {}, children: ['engine AbovePrompt'] })
   })
 }
+
+// Claude Code raises AbovePrompt only on terminal and desktop; this pins the branch in case that changes.
+test('vscode and mobile get a still wire and no Client', WITH_TOKEN, async ($, on) => {
+  mock.store(on, STORE)
+  const clock = mock.clock(on)
+  engineUi(on)
+  fakeNet(on, { send: f.v1_send_slow, get: f.v1_get_working })
+  await send($, clock, 'slow 60 build')
+  for (const surface of ['vscode', 'mobile'] as const) {
+    const ui = await mountBand($, surface)
+    expect(has(await ui.drawn(), 'Client')).toBe(false)
+    expect(await ui.find({ type: 'Text', text: 'Claude' })).toBeDefined()
+  }
+})
 
 test('the band redraws when its return packet is due to rest', { ...WITH_TOKEN, plugins: [counter] }, async ($, on) => {
   mock.store(on, STORE)

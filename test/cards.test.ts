@@ -1,6 +1,6 @@
 import { test, expect, mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { RenderPropsOf, RenderSurface } from 'claude-code'
-import { CALL_IDS, completedWith, engineUi, expectNoToken, fakeNet, STORE, SURFACES, WITH_TOKEN } from './kit.ts'
+import { CALL_IDS, completedWith, engineUi, expectNoToken, fakeNet, has, STORE, SURFACES, WITH_TOKEN } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 import { textOf } from '../hooks/ui/cards.tsx'
 
@@ -33,6 +33,22 @@ test('textOf reads a string, a content list or a result object', () => {
   expect(textOf([{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }])).toBe('a\nb')
   expect(textOf({ result: 'r' })).toBe('r')
   expect(textOf({ content: [{ type: 'text', text: 'c' }] })).toBe('c')
+})
+
+test('vscode and mobile cards draw without a Client', SENDS, async ($, on) => {
+  mock.store(on, STORE)
+  const clock = mock.clock(on)
+  const seen = engineUi(on)
+  fakeNet(on, { send: f.v1_send_echo, get: f.v1_get_completed })
+  const { id, result } = await sendFor($, clock, seen.callIds)
+  for (const surface of ['vscode', 'mobile'] as const) {
+    const use = await mountUse($, surface)
+    expect(has(await use.drawn(), 'Client')).toBe(false)
+    expect(await use.find({ type: 'Text', text: /working…/ })).toBeDefined()
+    const res = await mountResult($, surface, id, result)
+    expect(has(await res.drawn(), 'Client')).toBe(false)
+    expect(await res.find({ type: 'Text', text: /echo: hi/ })).toBeDefined()
+  }
 })
 
 for (const surface of SURFACES) {

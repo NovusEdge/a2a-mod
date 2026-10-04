@@ -10,7 +10,7 @@ import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
 import { bandTree, nextRedraw } from './ui/band.tsx'
 import { resultCard, textOf, useCard, wakeCard, wakeNotes } from './ui/cards.tsx'
-import { hasClient, paneTree, type PaneActions } from './ui/pane.tsx'
+import { paneTree, type PaneActions } from './ui/pane.tsx'
 import { parseSettings } from './ui/settings.ts'
 import { isLive } from './wire.ts'
 
@@ -212,8 +212,7 @@ export const register: Register = (on, options) => {
     return next({ ...e, context: [...(e.context ?? []), ...told] })
   })
 
-  on('ui.render', { component: 'ToolUse', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e, next) => {
-    if (!hasClient(e.surface)) return next(e)
+  on('ui.render', { component: 'ToolUse', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e) => {
     const host = hostOf($, settingTokens)
     const input = (e.props.input ?? {}) as { worker?: unknown; message?: unknown }
     const alias = String(input.worker ?? '')
@@ -225,8 +224,7 @@ export const register: Register = (on, options) => {
     })
   })
 
-  on('ui.render', { component: 'ToolResult', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e, next) => {
-    if (!hasClient(e.surface)) return next(e)
+  on('ui.render', { component: 'ToolResult', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e) => {
     const host = hostOf($, settingTokens)
     const [calls, done] = await Promise.all([host.readCalls(), read($, played)])
     const call = calls.value?.[e.props.tool_use_id]
@@ -237,7 +235,7 @@ export const register: Register = (on, options) => {
   // The band is shared: another mod may draw there, and the first tree in the chain wins. So it
   // draws only while it has recent work, yields to surveys, and stacks next(e)'s tree under its own.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!hasClient(e.surface) || e.props.hasSurvey) return next(e)
+    if (e.props.hasSurvey) return next(e)
     const now = Date.now()
     const rows = visible(await readRecent(hostOf($, settingTokens)), now)
     if (!rows.length) return next(e)
@@ -252,7 +250,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'UserMessage', props: { origin: { kind: 'plugin' } } }, async ($, e, next) => {
     const o = e.props.origin
     // While expanded (ctrl+o) the engine draws the raw message.
-    if (!hasClient(e.surface) || e.props.isExpanded || o.kind !== 'plugin' || o.name !== 'a2a-mod') return next(e)
+    if (e.props.isExpanded || o.kind !== 'plugin' || o.name !== 'a2a-mod') return next(e)
     const notes = wakeNotes(e.props.text)
     if (!notes) return next(e)
     const [list, done, pal] = await Promise.all([readRecent(hostOf($, settingTokens)), read($, played), paletteOf($)])
@@ -269,8 +267,7 @@ export const register: Register = (on, options) => {
     return {}
   })
 
-  on('ui.render', { component: 'Pane', requestId: 'a2a-workers' }, async ($, e, next) => {
-    if (!hasClient(e.surface)) return next(e)
+  on('ui.render', { component: 'Pane', requestId: 'a2a-workers' }, async ($, e) => {
     const host = hostOf($, settingTokens)
     const now = Date.now()
     const [workers, list, view, durations, pal] = await Promise.all([loadWorkers(host), readRecent(host), read($, paneView), host.readDurations(), paletteOf($)])
