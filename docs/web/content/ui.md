@@ -32,7 +32,7 @@ The task text is cut to 32 characters. The line updates once a second while a ta
 
 ## The band
 
-One row above the prompt, only while a task runs or waits: `Claude ┄●┄ fake`, with a packet going out when you send and coming back when the result lands. A chip per running or waiting task follows. The band goes about 2 seconds after the last task ends. It shares the slot with other mods and yields to surveys.
+Two lines above the prompt, only while a task runs or waits. The first is the wire, `Claude ┄●┄ fake`, with a packet going out when you send and coming back when the result lands. Under it is a row of chips, one per running or waiting task. The band goes about 2 seconds after the last task ends. It shares the slot with other mods and yields to surveys.
 
 ## The workers pane
 

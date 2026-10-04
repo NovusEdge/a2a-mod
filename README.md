@@ -146,7 +146,7 @@ sequenceDiagram
 | Cards for `send` and for wake messages | yes | no | no |
 | Hand-off band above the prompt, only while a task runs or waits | yes | no | no |
 
-The status line is where a running task shows, because it stays visible next to `/diff`. The band is the same hand-off, one row high, and goes away about 2 seconds after the last task ends. The workers pane never opens by itself: run `/a2a`. It asks for a slim dock (32 columns), so it sits beside `/diff` as a tab, and it holds down to 24 columns.
+The status line is where a running task shows, because it stays visible next to `/diff`. The band is the same hand-off, drawn as a wire line with a row of task chips under it, and goes away about 2 seconds after the last task ends. The workers pane never opens by itself: run `/a2a`. It asks for a slim dock (32 columns), so it sits beside `/diff` as a tab, and it holds down to 24 columns.
 
 Change the layout or turn animations off in `/config`. With animations off, every effect draws one still frame. VS Code and the mobile app draw still frames, and the mobile app has no Reply. Built and tested on Claude Code 2.1.288. More on [the UI page](https://a2a.khimani.dev/ui).
 
