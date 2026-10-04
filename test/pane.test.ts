@@ -1,5 +1,5 @@
 import { test, expect, mock, type Engine, type MockClock, type Plugin } from 'claude-code/testing'
-import { SHOW_MS } from '../hooks/recent.ts'
+import { RECENT_MAX, SHOW_MS } from '../hooks/recent.ts'
 import type { RenderSurface } from 'claude-code'
 import { completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, PANE_PROPS, promptLog, runA2a, STORE, SURFACES, widthOf, WITH_TOKEN } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
@@ -223,7 +223,7 @@ for (const surface of SURFACES) {
     expect((await drawnAll(ui)).length).toBe(21)
   })
 
-  test(`twenty rows with 5,000-character messages and a 10,000-character result open stay under the tree limit, and one row opens at a time, on ${surface}`, WITH_TOKEN, async ($, on) => {
+  test(`a full list of rows with 5,000-character messages and a 10,000-character result open stay under the tree limit, and one row opens at a time, on ${surface}`, WITH_TOKEN, async ($, on) => {
     mock.store(on, STORE)
     const clock = mock.clock(on)
     engineUi(on)
@@ -231,7 +231,7 @@ for (const surface of SURFACES) {
     const nth = () => JSON.parse(JSON.stringify(f.v1_send_echo).replaceAll(ECHO_ID, `e${n++}`))
     const big = completedWith('r'.repeat(10_000))
     fakeNet(on, { send: nth, get: (b: { params: { id: string } }) => JSON.parse(JSON.stringify(big).replaceAll(DONE_ID, b.params.id)) })
-    const calls = Array.from({ length: 20 }, () => $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message: 'm'.repeat(5000) }))
+    const calls = Array.from({ length: RECENT_MAX }, () => $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message: 'm'.repeat(5000) }))
     await clock.advance(7500)
     await Promise.all(calls)
     const ui = await mountPane($, surface)
