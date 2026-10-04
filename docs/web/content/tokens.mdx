@@ -51,12 +51,18 @@ Command and file tokens are cached in memory for 5 minutes. The mod fetches them
 
 The command line is stored and shown by `/a2a list`. Its output is never shown. The mod gives the command 10 seconds to finish.
 
+## Workers Claude adds
+
+A worker that Claude adds with the `add_worker` tool uses the `tokens` setting and nothing else. If the card asks for a token and the setting has none for that alias, Claude tells you how to set it. For a command or file token, or for `--trust-endpoint`, run `/a2a add` yourself. A worker's reply can carry prompt injection, so Claude is never given a way to choose where a token comes from.
+
 ## Where a token goes
 
 A token goes only to the origin of the worker's Agent Card. If the card points to an endpoint on another origin, the mod withholds the token until you re-add the worker with `--trust-endpoint`. That flag allows the token to go to an endpoint on another origin than the card, and it is separate from the three sources.
 
 ## Never type a token
 
-> **Never type a token into Claude or into `/a2a`.** Slash commands are kept in the transcript, so `/a2a add` rejects `--token`.
+<Callout type="warn" title="Never type a token into Claude or into `/a2a`">
+  Slash commands are kept in the transcript, so `/a2a add` rejects `--token`.
+</Callout>
 
 For where each source is kept and what counts as a vulnerability, see [Security](/security).

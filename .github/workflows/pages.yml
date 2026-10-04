@@ -30,7 +30,7 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: docs/web/pnpm-lock.yaml
-      - run: pnpm -C docs/web install --frozen-lockfile --ignore-workspace
+      - run: pnpm -C docs/web install --frozen-lockfile
       - run: pnpm -C docs/web build
       - run: pnpm -C docs/web check
       - uses: actions/configure-pages@v6

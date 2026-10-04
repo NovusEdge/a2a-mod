@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pathOf, slugs } from '../pages.ts'
+import { llmsPath, pathOf, slugs } from '../pages.ts'
 
 const root = fileURLToPath(new URL('../build/client/', import.meta.url))
 const problems: string[] = []
@@ -16,14 +16,17 @@ const fileOf = (route: string) => join(root, route.replace(/\/$/, ''), 'index.ht
 for (const slug of slugs()) {
   if (!existsSync(fileOf(pathOf(slug)))) problems.push(`no prerendered HTML for ${pathOf(slug)}`)
 }
-for (const f of ['404.html', 'pagefind/pagefind.js']) {
+for (const f of ['404.html', 'api/search', 'llms.txt', ...slugs().map(s => llmsPath(s).slice(1))]) {
   if (!existsSync(join(root, f))) problems.push(`build output is missing ${f}`)
+}
+if (existsSync(join(root, 'api/search')) && JSON.parse(readFileSync(join(root, 'api/search'), 'utf8')).type !== 'advanced') {
+  problems.push('api/search is not a search index')
 }
 
 const htmlFiles = (dir: string): string[] =>
   readdirSync(dir).flatMap(name => {
     const p = join(dir, name)
-    if (statSync(p).isDirectory()) return name === 'pagefind' || name === 'assets' ? [] : htmlFiles(p)
+    if (statSync(p).isDirectory()) return name === 'assets' ? [] : htmlFiles(p)
     return name.endsWith('.html') ? [p] : []
   })
 

@@ -59,5 +59,5 @@ If you remove a worker while it has a task running, Claude is told the task is n
 
 ## Related
 
-- [Commands and tools](/commands) for the `send` and `task` inputs.
+- [Commands and tools](/commands) for the inputs of all five tools.
 - [Troubleshooting](/troubleshooting) for the messages Claude can get back.

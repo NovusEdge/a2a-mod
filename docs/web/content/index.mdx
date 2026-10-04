@@ -7,6 +7,19 @@ section: Start
 
 a2a-mod lets Claude Code hand a task to another AI agent and keep working while that agent runs. When the agent finishes, Claude gets the result and picks up where it left off. The agents speak A2A (Agent2Agent), an open protocol that lets agents built on different frameworks talk to each other; here we call such an agent a *worker*: an ADK, AG2 or LangGraph agent, or anything built on @a2a-js/sdk.
 
+## Install
+
+```sh title="Claude Code"
+/plugin marketplace add NovusEdge/a2a-mod
+/plugin install a2a-mod@a2a-mod
+```
+
+Needs Claude Code 2.1.287 or later, the first release with mods.
+
+![Claude Code adds a fake worker, hands it a slow task, and gets the result back](/demo.gif)
+
+<Diagram />
+
 ## What it looks like
 
 You add a worker once. After that you ask Claude to use it in plain words:
@@ -31,7 +44,7 @@ The last two lines are what Claude sees. A slow task never blocks Claude: after 
 
 - [Quick start](/quick-start) runs the repo's fake worker, so you can try the mod without a real agent.
 - [The UI](/ui) covers the status line, the workers pane and the layouts.
-- [Commands and tools](/commands) covers `/a2a` and the three tools Claude sees.
+- [Commands and tools](/commands) covers `/a2a` and the five tools Claude sees.
 - [Worker tokens](/tokens) explains how a worker gets its bearer token.
 - [How it works](/how-it-works) follows a task from `send` to the wake-up.
 - [Troubleshooting](/troubleshooting) lists the messages the mod prints and what to do about each.

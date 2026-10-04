@@ -13,6 +13,12 @@ You get an acknowledgement within 7 days and a fix or a decision within 90 days.
 - **`--token-file`** reads the file as your own user. Claude Code does not report file permissions to the mod, so it cannot warn you about a file other users can read. Keep it at mode 0600.
 - Command and file tokens are held in the mod's memory for up to 5 minutes. They are never written to the plugin's store.
 
+## Workers Claude adds
+
+Claude can add or remove a worker with the `add_worker` and `remove_worker` tools, but only after you approve a dialog. The dialog shows on every call, whatever the permission mode. The dialog is a human gate unless you install other mods or hooks that answer AskUserQuestion; those are trusted like this mod. In a run with no one to ask, such as `claude -p`, the tools refuse.
+
+A worker Claude adds gets its token only from the `tokens` setting, or none. Token commands, token files and `--trust-endpoint` stay in `/a2a add`, which only you type. A worker's reply reaches Claude like any tool result and can carry prompt injection, so Claude has no way to set those. Moving a worker to another host, or giving a new worker a token that is already in your tokens setting, always needs your own `/a2a add`.
+
 ## What counts
 
 - A worker token written to the transcript, a tool result, a status line, a log, or any file other than the plugin's own store.
@@ -20,6 +26,7 @@ You get an acknowledgement within 7 days and a fix or a decision within 90 days.
 - A worker token sent to a host other than the one it was registered for.
 - A worker response that makes the mod run a tool, a command, or a process without the model asking for it.
 - Any way to give the mod a worker token other than the `tokens` plugin setting, `--token-cmd` or `--token-file`.
+- A way for Claude, or a worker's reply, to add a worker with a command token, a file token or a trusted endpoint, or to add or remove a worker without the dialog.
 - The output of a `--token-cmd` command, or a token file's contents, appearing in any text the mod emits.
 
 ## What does not count

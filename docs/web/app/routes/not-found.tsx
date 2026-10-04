@@ -1,14 +1,22 @@
-import { Link } from 'react-router'
 import type { Route } from './+types/not-found'
+import { HomeLayout } from 'fumadocs-ui/layouts/home'
+import { Link } from 'react-router'
+import { baseOptions } from '@/lib/layout.shared'
 
-export const meta: Route.MetaFunction = () => [{ title: 'Page not found · a2a-mod' }]
+export function meta({}: Route.MetaArgs) {
+  return [{ title: 'Not Found · a2a-mod' }]
+}
 
 export default function NotFound() {
   return (
-    <article className="prose-doc min-w-0 max-w-[760px] lg:col-span-1">
-      <p className="label mb-3 !text-(--accent)">404</p>
-      <h1>Page not found</h1>
-      <p className="lead">There is no page at this address. <Link to="/">Go to the overview</Link>.</p>
-    </article>
+    <HomeLayout {...baseOptions()}>
+      <div className="p-4 flex flex-col items-center justify-center text-center flex-1">
+        <h1 className="text-xl font-bold mb-2">Not Found</h1>
+        <p className="text-fd-muted-foreground mb-4">This page could not be found.</p>
+        <Link className="text-sm bg-fd-primary text-fd-primary-foreground rounded-full font-medium px-4 py-2.5" to="/">
+          Back to the docs
+        </Link>
+      </div>
+    </HomeLayout>
   )
 }

@@ -1,7 +1,7 @@
 import type { Config } from '@react-router/dev/config'
-import { pathOf, slugs } from './pages.ts'
+import { llmsPath, pathOf, slugs } from './pages.ts'
 
 export default {
   ssr: false,
-  prerender: slugs().map(pathOf),
+  prerender: [...slugs().flatMap(slug => [pathOf(slug), llmsPath(slug)]), '/api/search', '/llms.txt', '/llms-full.txt'],
 } satisfies Config

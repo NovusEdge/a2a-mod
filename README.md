@@ -75,7 +75,7 @@ Pick `full`, `pane` or `minimal` in `/config` to show more or less. [The UI](htt
 /a2a add https://worker.example.com research --token-cmd "pass show research"
 ```
 
-The token is read from a command, a file or a setting, and never typed into Claude. [Worker tokens](https://a2a.khimani.dev/tokens) covers all three.
+The token is read from a command, a file or a setting, and never typed into Claude. [Worker tokens](https://a2a.khimani.dev/tokens) covers all three. You can also just ask Claude to add a worker; it shows a dialog, and nothing is added until you approve it.
 
 ## Learn more
 

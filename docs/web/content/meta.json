@@ -1,0 +1,18 @@
+{
+  "pages": [
+    "---Start---",
+    "index",
+    "quick-start",
+    "ui",
+    "---Use---",
+    "commands",
+    "tokens",
+    "how-it-works",
+    "troubleshooting",
+    "---Build---",
+    "write-a-worker",
+    "---Reference---",
+    "protocol",
+    "security"
+  ]
+}
