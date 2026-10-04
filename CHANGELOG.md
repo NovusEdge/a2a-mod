@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-04
+
 ### Added
 
 - Tools for Claude: `mcp__a2a-mod__workers` lists registered workers and their skills, `mcp__a2a-mod__send` sends a task, and `mcp__a2a-mod__task` reads or cancels one.
@@ -26,3 +28,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/a2a` with no arguments opens the workers pane, and still prints the usage text.
 - A task that asks a question stays listed as waiting until someone answers it, and the status line adds `· N waiting`.
 - Worker text shown in the UI has terminal control characters removed (ANSI colour codes, bells).
+
