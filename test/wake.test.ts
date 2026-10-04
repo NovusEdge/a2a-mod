@@ -38,6 +38,15 @@ test('a rule inside a worker result does not split the wake into fake cards', ()
   expect(notes).toEqual([{ worker: 'fake', taskId: 't1', state: 'completed', body: 'part one\n\n---\n\npart two' }])
 })
 
+test('prose after a rule in a result does not become a note', () => {
+  const one = wakeNotes('A2A task finished:\n\nfake task t1 is completed.\n\n## Notes\n\n---\n\nThe task is done')
+  expect(one).toHaveLength(1)
+  expect(one![0]).toMatchObject({ worker: 'fake', taskId: 't1' })
+  const two = wakeNotes('A2A tasks finished:\n\nfake task t1 is completed.\n\n## Notes\n\n---\n\nThe task is done\n\n---\n\nfake replied:\n\nhi')
+  expect(two!.map(n => n.worker)).toEqual(['fake', 'fake'])
+  expect(two![0]!.body).toBe('## Notes\n\n---\n\nThe task is done')
+})
+
 test('a wake message for a task this session never listed still draws from its own text', async ($, on) => {
   mock.store(on, STORE)
   engineUi(on)

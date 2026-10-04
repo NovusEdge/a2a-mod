@@ -86,15 +86,18 @@ function resultBody(el: CardEls, d: ResultCard, clientKey: string): RenderElemen
 
 export type WakeNote = { worker: string; taskId: string | undefined; state: RecentState | undefined; body: string }
 
-const WAKE_HEAD = /^A2A tasks? finished:\n\n/
-// A worker's result may hold its own `---` rule, so a split needs the next note's opening words.
-const NOTE_BREAK = /\n\n---\n\n(?=\S+ task \S+)/
+const WAKE_HEAD = /^A2A (task|tasks) finished:\n\n/
+// A worker's result may hold its own `---` rule, so a split needs the next note to open the way
+// describeOutcome and the tracker write one: `a task t is state`, `a task t:` or `a replied`.
+const NOTE_BREAK = /\n\n---\n\n(?=\S+ (?:replied[ :]|task [^\s:]+(?: is [a-z-]+[ .(]|:)))/
 
 /** The notes of a wake prompt the tracker wrote, or undefined for any other text. */
 export function wakeNotes(text: string): WakeNote[] | undefined {
   const head = WAKE_HEAD.exec(text)
   if (!head) return undefined
-  return printable(text.slice(head[0].length)).split(NOTE_BREAK).map(note => {
+  const rest = printable(text.slice(head[0].length))
+  // The tracker writes the singular head for exactly one note.
+  return (head[1] === 'task' ? [rest] : rest.split(NOTE_BREAK)).map(note => {
     const id = /^(\S+) task ([^\s:]+)/.exec(note)
     const said = /^\S+ task \S+ is ([a-z-]+)/.exec(note)?.[1] as RecentState | undefined
     const gap = note.indexOf('\n\n')
