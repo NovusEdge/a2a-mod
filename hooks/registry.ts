@@ -1,5 +1,5 @@
 import type { ProcessRunResult, StateRead, Timer } from 'claude-code'
-import type { Target, TrackedTask, Worker } from '../types/index.d.ts'
+import type { CallInfo, RecentTask, Target, TrackedTask, Worker } from '../types/index.d.ts'
 import { A2AError, type Fetcher } from './client.ts'
 
 /** The `tokens` plugin setting, parsed once per load. `invalid` when a word was not `alias=token`. */
@@ -18,7 +18,15 @@ export type Host = {
   readTasks(): Promise<StateRead<TrackedTask[]>>
   /** False when another write landed since `ifVersion`. */
   writeTasks(tasks: TrackedTask[], ifVersion: number): Promise<boolean>
+  readRecent(): Promise<StateRead<RecentTask[]>>
+  writeRecent(recent: RecentTask[], ifVersion: number): Promise<boolean>
+  readCalls(): Promise<StateRead<Record<string, CallInfo>>>
+  writeCalls(calls: Record<string, CallInfo>, ifVersion: number): Promise<boolean>
+  /** Run times of completed tasks per worker, in ms, oldest first. */
+  readDurations(): Promise<Record<string, number[]>>
+  writeDurations(all: Record<string, number[]>): Promise<void>
   status(text: string | undefined): void
+  now(): Promise<number>
   every(ms: number, fn: () => void): Timer
   sleep(ms: number): Promise<void>
   wake(text: string): Promise<void>

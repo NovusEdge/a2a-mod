@@ -4,6 +4,16 @@ const MAX = 8000
 // The task tool is where the note on a cut result sends Claude, so it gets a far larger limit.
 export const FULL_MAX = 100_000
 
+// A Text or Markdown holding ESC, BEL or another control character is refused, and the whole tree
+// with it. Worker output often carries ANSI colour codes.
+export function printable(text: string): string {
+  return text
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
+}
+
 export function truncate(text: string, max = MAX): string {
   if (text.length <= max) return text
   const rest = max < FULL_MAX ? 'call the task tool for the full result' : 'the rest is not shown'

@@ -48,8 +48,42 @@ export type TrackedTask = {
   failures: number
 }
 
+/** A task as the UI lists it: its A2A state, or `removed` when its worker was removed mid-task. */
+export type RecentState = TaskState | 'removed'
+
+export type RecentTask = {
+  worker: string
+  /** The A2A task id; for a send answered with a message, the tool call's id. */
+  taskId: string
+  contextId?: string
+  /** The message that started the task. */
+  text: string
+  state: RecentState
+  startedAt: number
+  /** When `state` last changed: the row's dot pulses for a second after it. */
+  changedAt: number
+  endedAt?: number
+  /** The result, or the worker's question while waiting; at most 10,000 characters. */
+  result?: string
+  /** Who answered first while the task was waiting. */
+  answeredBy?: 'user' | 'claude'
+  /** Set by Cancel until a poll reports how the task ended. */
+  canceling?: true
+  /** The last `N%` a live task's status message carried. */
+  progress?: number
+}
+
+/** What one send tool call came to, keyed by its tool_use_id. */
+export type CallInfo = { worker: string; taskId?: string; state: RecentState; startedAt: number }
+
 declare module 'claude-code' {
   interface PluginState {
-    'a2a-mod': { tasks: TrackedTask[] }
+    'a2a-mod': {
+      tasks: TrackedTask[]
+      recent: RecentTask[]
+      calls: Record<string, CallInfo>
+      /** Task ids (or tool call ids) whose result has typed itself in once. */
+      played: string[]
+    }
   }
 }

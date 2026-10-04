@@ -1,15 +1,18 @@
 import type { EngineInterface, Register } from 'claude-code'
-import type { Worker } from '../types/index.d.ts'
+import type { RecentState, Worker } from '../types/index.d.ts'
 import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
 import { describeOutcome, FULL_MAX } from './format.ts'
+import { noteCall, noteSent, noteState } from './recent.ts'
 import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
-import { resume, track } from './tracker.ts'
+import { resume, showStatus, track } from './tracker.ts'
 import { isLive } from './wire.ts'
 
 type Engine = EngineInterface
 
 const TASKS = { plugin: 'a2a-mod', key: 'tasks' } as const
+const RECENT = { plugin: 'a2a-mod', key: 'recent' } as const
+const CALLS = { plugin: 'a2a-mod', key: 'calls' } as const
 const TOKEN_CMD_TIMEOUT_MS = 10_000
 
 function hostOf($: Engine, settingTokens: SettingTokens): Host {
@@ -22,7 +25,15 @@ function hostOf($: Engine, settingTokens: SettingTokens): Host {
     readFile: path => $.fs.read(path),
     readTasks: () => $.state.get(TASKS),
     writeTasks: async (tasks, ifVersion) => (await $.state.set(TASKS, tasks, { ifVersion })).isSet,
+    readRecent: () => $.state.get(RECENT),
+    writeRecent: async (recent, ifVersion) => (await $.state.set(RECENT, recent, { ifVersion })).isSet,
+    readCalls: () => $.state.get(CALLS),
+    writeCalls: async (calls, ifVersion) => (await $.state.set(CALLS, calls, { ifVersion })).isSet,
+    readDurations: async () => ((await $.store.get('durations')) as Record<string, number[]> | undefined) ?? {},
+    writeDurations: all => $.store.set('durations', all),
     status: text => $.ui.status(text),
+    // Wall time, as the backend has always stamped startedAt; $.clock.now is answered only under mock.clock in tests.
+    now: async () => Date.now(),
     every: (ms, fn) => $.clock.every(ms, fn),
     sleep: ms => $.clock.sleep(ms),
     wake: async text => { await $.prompt.submit({ text }) },
@@ -117,10 +128,16 @@ export const register: Register = (on, options) => {
     const host = hostOf($, settingTokens)
     const w = await workerOr(host, input.worker)
     if (typeof w === 'string') return { result: w }
+    const startedAt = await host.now()
+    const call = (state: RecentState, taskId?: string) => noteCall(host, e.tool_use_id, { worker: w.alias, state, startedAt, ...(taskId ? { taskId } : {}) })
+    await call('submitted')
     try {
       const fetch = host.fetch
       const t = await bounded($, next.budget.remainingMs, next.signal, w.alias, targetOf(host, w))
       let out = await bounded($, next.budget.remainingMs, next.signal, w.alias, send(fetch, t, { text: String(input.message ?? ''), taskId: input.taskId, contextId: input.contextId }))
+      // A send answered with a message has no task id; its row is keyed by the call instead.
+      const id = out.kind === 'task' ? out.taskId : e.tool_use_id
+      await noteSent(host, { worker: w.alias, taskId: id, contextId: out.contextId, text: String(input.message ?? ''), state: out.kind === 'task' ? out.state : 'working' }, 'claude')
       for (const ms of INLINE_POLLS_MS) {
         if (out.kind !== 'task' || !isLive(out.state)) break
         if (next.budget.remainingMs - ms < BUDGET_RESERVE_MS) break
@@ -129,12 +146,19 @@ export const register: Register = (on, options) => {
         try { out = await bounded($, next.budget.remainingMs, next.signal, w.alias, getTask(fetch, t, out.taskId)) } catch (err) { if (err instanceof A2AError) { noteFailure(w, err); break } throw err }
       }
       if (out.kind === 'task' && isLive(out.state)) {
-        await track(host, { worker: w.alias, taskId: out.taskId, contextId: out.contextId, state: out.state, startedAt: Date.now() })
+        await track(host, { worker: w.alias, taskId: out.taskId, contextId: out.contextId, state: out.state, startedAt })
+        await noteState(host, w.alias, out.taskId, out.state, out.text)
+        await call(out.state, out.taskId)
         return { result: `${w.alias} is working on it (task ${out.taskId}, ${out.state}). You will get a message when it finishes; do not poll. Carry on with other work.` }
       }
+      const state = out.kind === 'task' ? out.state : 'completed'
+      await noteState(host, w.alias, id, state, out.text)
+      await call(state, out.kind === 'task' ? out.taskId : undefined)
+      await showStatus(host)
       return { result: describeOutcome(w.alias, out) }
     } catch (err) {
       noteFailure(w, err)
+      await call('failed')
       if (err instanceof A2AError) return { result: `a2a: ${err.message}` }
       throw err
     }

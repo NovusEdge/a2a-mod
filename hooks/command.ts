@@ -1,7 +1,8 @@
 import type { TokenSource, Worker } from '../types/index.d.ts'
 import { discover, A2AError } from './client.ts'
 import { loadWorkers, removeWorker, saveWorker, splitArgs, type Host } from './registry.ts'
-import { runningTasks } from './tracker.ts'
+import { noteRemoved } from './recent.ts'
+import { runningTasks, showStatus } from './tracker.ts'
 
 export const USAGE = [
   'Usage:',
@@ -93,7 +94,12 @@ export async function runCommand(host: Host, args: string): Promise<string> {
         const tasks = (await runningTasks(host)).map(t => `  ${t.worker} ${t.taskId} ${t.state}, ${Math.round((now - t.startedAt) / 1000)}s`)
         return `${workers}${warning}${tasks.length ? `\n\nRunning:\n${tasks.join('\n')}` : ''}`
       }
-      case 'remove': return words[0] && (await removeWorker(host, words[0])) ? `Removed ${words[0]}.` : `No worker named ${words[0] ?? '(none given)'}.`
+      case 'remove': {
+        if (!words[0] || !(await removeWorker(host, words[0]))) return `No worker named ${words[0] ?? '(none given)'}.`
+        await noteRemoved(host, words[0])
+        await showStatus(host)
+        return `Removed ${words[0]}.`
+      }
       default: return USAGE
     }
   } catch (err) {

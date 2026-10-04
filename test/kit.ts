@@ -1,6 +1,12 @@
-import type { HttpInit, HttpResponse, ProcessRunResult } from 'claude-code'
+import type { HttpInit, HttpResponse, ProcessRunResult, StateRead } from 'claude-code'
 import type { Engine, TestBody } from 'claude-code/testing'
+import type { Fetcher } from '../hooks/client.ts'
+import type { Host } from '../hooks/registry.ts'
+import type { CallInfo, RecentTask, TrackedTask } from '../types/index.d.ts'
 import { fixtures as f } from './fixtures.ts'
+
+// The test runtime has timers; the mod lib in tsconfig does not declare them.
+declare const setTimeout: (fn: () => void, ms: number) => unknown
 
 export type On = Parameters<TestBody>[1]
 
@@ -45,3 +51,76 @@ export const ran = (stdout: string, exitCode = 0): { value: ProcessRunResult } =
 
 export const runA2a = ($: Engine, args = '') =>
   $.command.run({ command: 'a2a', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 80 } })
+
+/**
+ * Answers $.state from memory so a test can read what the mod wrote. A mounted drawing does not
+ * redraw on these writes, so UI tests leave $.state to the engine instead.
+ */
+export function memState(on: On) {
+  const held = new Map<string, StateRead<unknown>>()
+  on('state.get', async (_$, e) => ({ value: held.get(e.key) ?? { value: undefined, version: 0 } }))
+  on('state.set', async (_$, e) => {
+    const was = held.get(e.key) ?? { value: undefined, version: 0 }
+    if (e.ifVersion !== undefined && e.ifVersion !== was.version) return { value: { isSet: false, version: was.version } }
+    held.set(e.key, { value: e.value, version: was.version + 1 })
+    return { value: { isSet: true, version: was.version + 1 } }
+  })
+  return {
+    recent: () => (held.get('recent')?.value ?? []) as RecentTask[],
+    calls: () => (held.get('calls')?.value ?? {}) as Record<string, CallInfo>,
+    tasks: () => (held.get('tasks')?.value ?? []) as TrackedTask[],
+  }
+}
+
+function versioned<T>(initial: T) {
+  let held: StateRead<T> = { value: initial, version: 1 }
+  return {
+    read: async () => held,
+    write: async (value: T, ifVersion: number) => {
+      if (ifVersion !== held.version) return false
+      held = { value, version: held.version + 1 }
+      return true
+    },
+    get: () => held.value as T,
+  }
+}
+
+/** A Host with everything in memory, for the tracker and recent code below register.ts. */
+export function fakeHost(fetch: Fetcher, left: TrackedTask[] = [], opts: { now?: number; recent?: RecentTask[] } = {}) {
+  const tasks = versioned<TrackedTask[]>(left)
+  const recent = versioned<RecentTask[]>(opts.recent ?? [])
+  const calls = versioned<Record<string, CallInfo>>({})
+  let durations: Record<string, number[]> = {}
+  const wakes: string[] = []
+  const statuses: (string | undefined)[] = []
+  const clock = { now: opts.now ?? 0 }
+  const timer: { fn?: () => void } = {}
+  const host: Host = {
+    fetch,
+    readWorkers: async () => STORE.workers,
+    writeWorkers: async () => {},
+    settingTokens: { map: { fake: 's3cret' }, invalid: false },
+    run: async () => { throw new Error('no commands in this test') },
+    readFile: async () => { throw new Error('no files in this test') },
+    readTasks: tasks.read,
+    writeTasks: tasks.write,
+    readRecent: recent.read,
+    writeRecent: recent.write,
+    readCalls: calls.read,
+    writeCalls: calls.write,
+    readDurations: async () => durations,
+    writeDurations: async all => { durations = all },
+    status: text => { statuses.push(text) },
+    now: async () => clock.now,
+    every: (_ms, fn) => { timer.fn = fn; return { cancel: () => { timer.fn = undefined } } },
+    sleep: () => new Promise(r => setTimeout(r, 0)),
+    wake: async text => { wakes.push(text) },
+  }
+  return {
+    host, wakes, timer, statuses, clock,
+    tasks: () => tasks.get(),
+    recent: () => recent.get(),
+    calls: () => calls.get(),
+    durations: () => durations,
+  }
+}
