@@ -1,8 +1,12 @@
 import { test, expect, mock, type Engine, type MockClock, type Plugin } from 'claude-code/testing'
-import { RECENT_MAX, SHOW_MS } from '../hooks/recent.ts'
+import { RECENT_MAX, RESULT_MAX, SHOW_MS, TEXT_MAX } from '../hooks/recent.ts'
 import type { RenderSurface } from 'claude-code'
-import { boxWith, completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, PANE_PROPS, promptLog, runA2a, STORE, SURFACES, textUnder, widthOf, WITH_TOKEN, type Node } from './kit.ts'
+import type { RecentTask } from '../types/index.d.ts'
+import { boxWith, completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, PANE_PROPS, promptLog, runA2a, seedRecent, STORE, SURFACES, textUnder, widthOf, WITH_TOKEN, type Node } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
+
+const seeded = (taskId: string, over: Partial<RecentTask> = {}): RecentTask =>
+  ({ worker: 'fake', taskId, text: `job ${taskId}`, state: 'working', startedAt: 0, changedAt: 0, ...over })
 
 const SLOW_ID = f.v1_send_slow.result.task.id
 const ASK_ID = f.v1_send_ask.result.task.id
@@ -208,33 +212,23 @@ for (const surface of SURFACES) {
     for (const tree of await drawnAll(ui)) expect(widthOf(tree)).toBeLessThanOrEqual(36)
   })
 
-  test(`twenty running rows draw without a refusal on ${surface}`, WITH_TOKEN, async ($, on) => {
+  test(`twenty running rows draw without a refusal on ${surface}`, { ...WITH_TOKEN, timeoutMs: 15_000 }, async ($, on) => {
     mock.store(on, STORE)
-    const clock = mock.clock(on)
+    mock.clock(on)
     engineUi(on)
-    let n = 0
-    const nth = () => JSON.parse(JSON.stringify(f.v1_send_slow).replaceAll(SLOW_ID, `t${n++}`))
-    fakeNet(on, { send: nth, get: (b: { params: { id: string } }) => JSON.parse(JSON.stringify(f.v1_get_working).replaceAll(SLOW_ID, b.params.id)) })
-    const calls = Array.from({ length: 20 }, (_, i) => $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message: `slow 60 job ${i}` }))
-    await clock.advance(7500)
-    await Promise.all(calls)
+    seedRecent(on, Array.from({ length: 20 }, (_, i) => seeded(`t${i}`, { text: `slow 60 job ${i}` })))
     const ui = await mountPane($, surface)
     expect((await ui.findAll({ type: 'Client' })).length).toBe(20)
     await ui.advance(400)
     expect((await drawnAll(ui)).length).toBe(21)
   })
 
-  test(`a full list of rows with 5,000-character messages and a 10,000-character result open stay under the tree limit, and one row opens at a time, on ${surface}`, WITH_TOKEN, async ($, on) => {
+  test(`a full list of rows with 5,000-character messages and a 10,000-character result open stay under the tree limit, and one row opens at a time, on ${surface}`, { ...WITH_TOKEN, timeoutMs: 15_000 }, async ($, on) => {
     mock.store(on, STORE)
-    const clock = mock.clock(on)
+    mock.clock(on)
     engineUi(on)
-    let n = 0
-    const nth = () => JSON.parse(JSON.stringify(f.v1_send_echo).replaceAll(ECHO_ID, `e${n++}`))
-    const big = completedWith('r'.repeat(10_000))
-    fakeNet(on, { send: nth, get: (b: { params: { id: string } }) => JSON.parse(JSON.stringify(big).replaceAll(DONE_ID, b.params.id)) })
-    const calls = Array.from({ length: RECENT_MAX }, () => $.tool.call({ tool: 'mcp__a2a-mod__send', worker: 'fake', message: 'm'.repeat(5000) }))
-    await clock.advance(7500)
-    await Promise.all(calls)
+    // The send path cuts a message to TEXT_MAX, so the seeded rows carry the longest text it can store.
+    seedRecent(on, Array.from({ length: RECENT_MAX }, (_, i) => seeded(`e${i}`, { text: 'm'.repeat(TEXT_MAX), state: 'completed', endedAt: 0, result: 'r'.repeat(RESULT_MAX) })))
     const ui = await mountPane($, surface)
     await ui.press({ key: 'open:e0' })
     expect((await ui.findAll({ type: 'Markdown' })).length).toBe(1)

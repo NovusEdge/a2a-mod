@@ -73,6 +73,14 @@ export function memState(on: On) {
   }
 }
 
+/**
+ * Answers reads of the `recent` list with `rows`, so a pane test can show dozens of rows without
+ * sending dozens of tasks. Writes still reach the engine; reads of other keys pass through.
+ */
+export function seedRecent(on: On, rows: readonly RecentTask[]) {
+  on('state.get', async (_$, e, next) => (e.key === 'recent' ? { value: { value: [...rows], version: 1 } } : next(e)))
+}
+
 function versioned<T>(initial: T) {
   let held: StateRead<T> = { value: initial, version: 1 }
   return {
