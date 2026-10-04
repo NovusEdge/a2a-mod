@@ -3,14 +3,14 @@ import type { EngineInterface, Register, Timer, UiCopyResult } from 'claude-code
 import type { PaneView, RecentState, RecentTask, SentReply, Worker } from '../types/index.d.ts'
 import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
-import { describeOutcome, FULL_MAX } from './format.ts'
+import { describeOutcome, FULL_MAX, wakeDetail, wakeLine } from './format.ts'
 import { addWorkerTool, removeWorkerTool, type Confirm } from './manage.ts'
 import { changeRecent, isOpen, isWaiting, noteCall, noteSent, noteState, readRecent, visible } from './recent.ts'
 import { loadWorkers, noteFailure, own, parseTokens, targetOf, workerOr, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
 import { bandRows, bandTree, nextRedraw } from './ui/band.tsx'
-import { resultCard, textOf, useCard, wakeCard, wakeNotes } from './ui/cards.tsx'
+import { resultCard, textOf, useCard } from './ui/cards.tsx'
 import { paneTree, type PaneActions } from './ui/pane.tsx'
 import { parseSettings, type UiSettings } from './ui/settings.ts'
 import { isLive } from './wire.ts'
@@ -45,6 +45,12 @@ async function nowOf($: Engine): Promise<number> {
   try { return await $.clock.now() } catch { return Date.now() }
 }
 
+// A wake is shown as `text` alone; its detail waits here for our own prompt.submit hook, which
+// attaches it as context. Whether the engine runs that hook for this mod's own submit is unverified
+// (the test kit does not), and a reload empties the list. Either way Claude gets the line alone, so
+// the send result tells it to fetch the result with the task tool.
+const pendingWakes: { text: string; detail: string }[] = []
+
 function hostOf($: Engine, settingTokens: SettingTokens, ui: UiSettings): Host {
   return {
     fetch: (url, init) => $.http.fetch(url, init),
@@ -66,7 +72,14 @@ function hostOf($: Engine, settingTokens: SettingTokens, ui: UiSettings): Host {
     now: () => nowOf($),
     every: (ms, fn) => $.clock.every(ms, fn),
     sleep: ms => $.clock.sleep(ms),
-    wake: async text => { await $.prompt.submit({ text }) },
+    wake: async (text, detail) => {
+      const entry = { text, detail }
+      pendingWakes.push(entry)
+      try { await $.prompt.submit({ text, asUser: true }) } finally {
+        const at = pendingWakes.indexOf(entry)
+        if (at >= 0) pendingWakes.splice(at, 1)
+      }
+    },
   }
 }
 
@@ -195,7 +208,8 @@ async function replyFromPane($: Engine, host: Host, t: RecentTask, text: string)
     // Claude heard the question, not this answer, so an answer that ends the task wakes it.
     await noteState(host, w.alias, t.taskId, state, out.text)
     await showStatus(host)
-    await host.wake(`A2A task finished:\n\n${describeOutcome(w.alias, out)}`)
+    const item = { worker: w.alias, taskId: t.taskId, state, body: describeOutcome(w.alias, out) }
+    await host.wake(wakeLine([item]), wakeDetail([item]))
     return true
   } catch (err) {
     noteFailure(w, err)
@@ -232,6 +246,12 @@ export const register: Register = (on, options) => {
   })
 
   on('prompt.submit', async ($, e, next) => {
+    if (e.origin.kind === 'plugin' && e.origin.name === 'a2a-mod') {
+      const at = pendingWakes.findIndex(w => w.text === e.text)
+      if (at < 0) return next(e)
+      const [wake] = pendingWakes.splice(at, 1)
+      return next({ ...e, context: [...(e.context ?? []), wake!.detail] })
+    }
     if (e.origin.kind !== 'composer') return next(e)
     const sent = await read($, replies)
     if (!sent.length) return next(e)
@@ -283,21 +303,6 @@ export const register: Register = (on, options) => {
     bandExpiry = due === undefined ? undefined : $.clock.after(due, () => $.ui.invalidate('ui.render'))
     const [pal, theirs] = await Promise.all([paletteOf($), next(e)])
     return bandTree($.ui.resolve(e), { surface: e.surface, width: e.props.bodyColumns, now, anim: ui.animations, pal, rows }, theirs)
-  })
-
-  on('ui.render', { component: 'UserMessage', props: { origin: { kind: 'plugin' } } }, async ($, e, next) => {
-    const o = e.props.origin
-    // isExpanded is no gate: the engine reports it true for a short message under its speaker label,
-    // which is every wake, so gating on it kept the card from ever drawing.
-    if (ui.layout !== 'full' || o.kind !== 'plugin' || o.name !== 'a2a-mod') return next(e)
-    const notes = wakeNotes(e.props.text)
-    if (!notes) return next(e)
-    const [list, done, pal] = await Promise.all([readRecent(hostOf($, settingTokens, ui)), read($, played), paletteOf($)])
-    return wakeCard($.ui.resolve(e), {
-      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal,
-      // The state the message reported, not the row's state now: the card is a record of that moment.
-      notes: notes.map(n => ({ ...n, state: n.state ?? list.find(t => t.taskId === n.taskId)?.state, played: n.taskId !== undefined && done.includes(n.taskId) })),
-    })
   })
 
   on('ui.message', async ($, e) => {
@@ -390,7 +395,7 @@ export const register: Register = (on, options) => {
         await track(host, { worker: w.alias, taskId: out.taskId, contextId: out.contextId, state: out.state, startedAt })
         await noteState(host, w.alias, out.taskId, out.state, out.text)
         await call(out.state, out.taskId)
-        return { result: `${w.alias} is working on it (task ${out.taskId}, ${out.state}). You will get a message when it finishes; do not poll. Carry on with other work.` }
+        return { result: `${w.alias} is working on it (task ${out.taskId}, ${out.state}). You will get a message when it finishes, reading "a2a: ${w.alias} task ${out.taskId.slice(0, 4)}… completed". It comes from this mod, not the user. If it carries no result, call the task tool with this task id; do not poll. Carry on with other work.` }
       }
       const state = out.kind === 'task' ? out.state : 'completed'
       await noteState(host, w.alias, id, state, out.text)

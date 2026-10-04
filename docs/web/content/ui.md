@@ -11,7 +11,7 @@ section: Start
 | --- | :-: | :-: | :-: |
 | Status line with the live task | yes | yes | yes |
 | Workers pane, opened with `/a2a` | yes | yes | no |
-| Cards for `send` and for wake messages | yes | no | no |
+| Cards for `send` and its result | yes | no | no |
 | Hand-off band above the prompt | yes | no | no |
 
 Change the layout or turn animations off in `/config`. With animations off, every effect draws one still frame. VS Code and the mobile app draw still frames, and the mobile app has no Reply button. Built and tested on Claude Code 2.1.288.
@@ -51,12 +51,12 @@ From 40 columns up, each worker box also shows its skills and the run times of i
 
 ## The transcript cards
 
-Each `send` shows as a card in the transcript: a rounded box, indented two columns, up to 100 columns wide.
+Each `send` and its result show as cards in the transcript: a rounded box, indented two columns, up to 100 columns wide.
 
 - The header has the worker, and its A2A version and organization at the right.
 - The message is wrapped under a dim `│` bar. While the task runs, a live row shows its age.
 - The result is a box with a badge: `● tracked`, `✓ completed`, `? needs input` or `✕ failed`. A completed result types itself in once. A task still running reads `tracked · task 5954ae32 · you'll be told when it lands`.
 
-The message that wakes Claude when a tracked task finishes gets the same kind of box, with the badge at the right of the header. Press ctrl+o to see the raw message.
+The message that wakes Claude when a tracked task finishes is not a card. It is one line, `a2a: fake task 3f9a… completed`. The pane and the band keep the full state.
 
 Worker text is shown with terminal control characters removed, and a token never appears in any of it. [How it works](/how-it-works) has the rest.

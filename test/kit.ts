@@ -127,6 +127,7 @@ export function fakeHost(fetch: Fetcher, left: TrackedTask[] = [], opts: { now?:
   const calls = versioned<Record<string, CallInfo>>({})
   let durations: Record<string, number[]> = {}
   const wakes: string[] = []
+  const lines: string[] = []
   const statuses: (string | undefined)[] = []
   const clock = { now: opts.now ?? 0 }
   const timer: { fn?: () => void } = {}
@@ -155,10 +156,10 @@ export function fakeHost(fetch: Fetcher, left: TrackedTask[] = [], opts: { now?:
       return { cancel: () => { slot.fn = undefined } }
     },
     sleep: () => new Promise(r => setTimeout(r, 0)),
-    wake: async text => { wakes.push(text) },
+    wake: async (text, detail) => { lines.push(text); wakes.push(detail) },
   }
   return {
-    host, wakes, timer, statusTimer, statuses, clock,
+    host, wakes, lines, timer, statusTimer, statuses, clock,
     tasks: () => tasks.get(),
     recent: () => recent.get(),
     calls: () => calls.get(),

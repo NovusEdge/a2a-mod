@@ -1,7 +1,7 @@
 import type { Timer } from 'claude-code'
 import type { RecentState, TaskState, TrackedTask } from '../types/index.d.ts'
 import { getTask } from './client.ts'
-import { describeOutcome } from './format.ts'
+import { describeOutcome, wakeDetail, wakeLine, type WakeItem } from './format.ts'
 import { isOpen, isRunning, noteState, readRecent } from './recent.ts'
 import { loadWorkers, noteFailure, own, targetOf, type Host } from './registry.ts'
 import { STATUS_MS, statusText } from './ui/status.ts'
@@ -72,15 +72,15 @@ export function timeoutOr<T>(host: Host, work: Promise<T>, ms = POLL_TIMEOUT_MS)
 }
 
 type Seen = { state: RecentState; text: string }
-type Result = { task: TrackedTask; live?: TrackedTask; note?: string; failed?: true; seen?: Seen }
+type Result = { task: TrackedTask; live?: TrackedTask; note?: WakeItem; failed?: true; seen?: Seen }
 
 async function pollOne(host: Host, t: TrackedTask, workers: Awaited<ReturnType<typeof loadWorkers>>): Promise<Result> {
   const w = own(workers, t.worker)
-  if (!w) return { task: t, note: `${t.worker} task ${t.taskId}: the worker was removed, so it is no longer tracked.`, seen: { state: 'removed', text: 'worker removed' } }
+  if (!w) return { task: t, note: { worker: t.worker, taskId: t.taskId, state: 'removed', body: `${t.worker} task ${t.taskId}: the worker was removed, so it is no longer tracked.` }, seen: { state: 'removed', text: 'worker removed' } }
   try {
     const out = await timeoutOr(host, getTask(host.fetch, await targetOf(host, w), t.taskId))
     const seen = { state: out.state, text: out.text }
-    return isLive(out.state) ? { task: t, live: { ...t, state: out.state, failures: 0 }, seen } : { task: t, note: describeOutcome(w.alias, out), seen }
+    return isLive(out.state) ? { task: t, live: { ...t, state: out.state, failures: 0 }, seen } : { task: t, note: { worker: w.alias, taskId: t.taskId, state: out.state, body: describeOutcome(w.alias, out) }, seen }
   } catch (err) {
     noteFailure(w, err)
     return { task: t, failed: true }
@@ -90,14 +90,14 @@ async function pollOne(host: Host, t: TrackedTask, workers: Awaited<ReturnType<t
 export async function tick(host: Host): Promise<void> {
   if (busy) return
   busy = true
-  const notes: string[] = []
+  const notes: WakeItem[] = []
   try {
     const workers = await loadWorkers(host)
     const results = await Promise.all((await runningTasks(host)).map(t => pollOne(host, t, workers)))
     const byId = new Map(results.map(r => [r.task.taskId, r]))
     notes.push(...results.flatMap(r => (r.note ? [r.note] : [])))
     // update may run its callback again after a version miss, so lost-contact notes are keyed, not pushed.
-    const lost = new Map<string, { task: TrackedTask; note: string }>()
+    const lost = new Map<string, { task: TrackedTask; note: WakeItem }>()
     await update(host, tasks => {
       lost.clear()
       return tasks.flatMap(t => {
@@ -106,18 +106,16 @@ export async function tick(host: Host): Promise<void> {
         if (r.live) return [r.live]
         if (!r.failed) return []
         if (t.failures + 1 < MAX_FAILURES) return [{ ...t, failures: t.failures + 1 }]
-        lost.set(t.taskId, { task: t, note: `${t.worker} task ${t.taskId}: lost contact with the worker after ${MAX_FAILURES} failed checks. Use the task tool to try again.` })
+        lost.set(t.taskId, { task: t, note: { worker: t.worker, taskId: t.taskId, state: 'unknown', word: 'lost contact', body: `${t.worker} task ${t.taskId}: lost contact with the worker after ${MAX_FAILURES} failed checks. Use the task tool to try again.` } })
         return []
       })
     })
     notes.push(...[...lost.values()].map(l => l.note))
     for (const r of results) if (r.seen) await noteState(host, r.task.worker, r.task.taskId, r.seen.state, r.seen.text)
-    for (const l of lost.values()) await noteState(host, l.task.worker, l.task.taskId, 'unknown', l.note)
+    for (const l of lost.values()) await noteState(host, l.task.worker, l.task.taskId, 'unknown', l.note.body)
     await showStatus(host)
   } finally {
     busy = false
   }
-  if (notes.length) {
-    await host.wake(`A2A ${notes.length === 1 ? 'task finished' : 'tasks finished'}:\n\n${notes.join('\n\n---\n\n')}`)
-  }
+  if (notes.length) await host.wake(wakeLine(notes), wakeDetail(notes))
 }
