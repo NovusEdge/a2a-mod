@@ -65,7 +65,7 @@ for (const surface of SURFACES) {
     await send($, clock, 'slow 60 build')
     const ui = await mountBand($, surface)
     expect(await ui.find({ type: 'Client', key: 'wire' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /^ fake · slow 60 build · \d+:\d\d$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: ' fake · slow 60 build' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'engine AbovePrompt' })).toBeDefined()
     const before = JSON.stringify(await ui.drawn({ in: 'wire' }))
     await ui.advance(400)

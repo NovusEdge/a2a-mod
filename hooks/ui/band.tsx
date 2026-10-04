@@ -3,7 +3,7 @@ import type { RecentTask } from '../../types/index.d.ts'
 import { isOpen, isRunning, isWaiting, SHOW_MS } from '../recent.ts'
 import type { Palette } from './color.ts'
 import { lines, wireCells, type WireProps } from './draw.tsx'
-import { clock, fit, type Direction } from './fx.ts'
+import { fit, type Direction } from './fx.ts'
 import { hasClient } from './pane.tsx'
 import { STATES } from './states.ts'
 
@@ -37,10 +37,10 @@ export function wireProps(d: BandData): WireProps {
   return { names: names.slice(0, NAMES_MAX), more: Math.max(0, names.length - NAMES_MAX), dir: direction(d.rows, d.now), anim: d.anim, pal: d.pal }
 }
 
-function chip(el: BandEls, t: RecentTask, d: BandData): RenderElement {
+function chip(el: BandEls, t: RecentTask): RenderElement {
   const { Box, Text } = el
   const look = STATES[t.state]
-  const what = isWaiting(t.state) ? 'waiting on Claude' : `${fit(t.text, 24)} · ${clock(d.now - t.startedAt)}`
+  const what = isWaiting(t.state) ? 'waiting on Claude' : fit(t.text, 24)
   return <Box><Text color={look.color}>{isRunning(t.state) ? '●' : look.glyph}</Text><Text>{` ${t.worker} · ${what}`}</Text></Box>
 }
 
@@ -51,7 +51,7 @@ export function bandTree(el: BandEls, d: BandData, theirs: RenderElement | undef
   return (
     <Box flexDirection="column">
       {Client && hasClient(d.surface) ? <Client key="wire" module="./wire.tsx" props={wire} /> : lines(el, [wireCells(wire, 0, 0)])}
-      <Box flexWrap="wrap" columnGap={3}>{d.rows.filter(isOpen).map(t => chip(el, t, d))}</Box>
+      <Box flexWrap="wrap" columnGap={3}>{d.rows.filter(isOpen).map(t => chip(el, t))}</Box>
       {theirs ?? null}
     </Box>
   )
