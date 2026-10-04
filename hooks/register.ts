@@ -4,8 +4,9 @@ import type { PaneView, RecentState, RecentTask, SentReply, Worker } from '../ty
 import { A2AError, cancelTask, getTask, send } from './client.ts'
 import { runCommand, USAGE } from './command.ts'
 import { describeOutcome, FULL_MAX } from './format.ts'
+import { addWorkerTool, removeWorkerTool, type Confirm } from './manage.ts'
 import { changeRecent, isOpen, isWaiting, noteCall, noteSent, noteState, readRecent, visible } from './recent.ts'
-import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
+import { loadWorkers, noteFailure, own, parseTokens, targetOf, workerOr, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
 import { bandRows, bandTree, nextRedraw } from './ui/band.tsx'
@@ -94,7 +95,30 @@ const TOOLS = [
       required: ['worker', 'taskId'],
     },
   },
+  {
+    name: 'add_worker',
+    description: 'Register an A2A worker from its URL. The user is asked to approve it first. Tokens set by command or file, and --trust-endpoint, need the user to run /a2a add themselves.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'The worker base URL, or its Agent Card URL' },
+        alias: { type: 'string', description: 'Short name to call it by; defaults to the card name' },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'remove_worker',
+    description: 'Forget a registered A2A worker. The user is asked to approve it first.',
+    inputSchema: { type: 'object', properties: { alias: { type: 'string', description: 'Worker alias from the workers tool' } }, required: ['alias'] },
+  },
 ]
+
+// The dialog shows on every call, whatever the permission mode. A reply that is not exactly the
+// Add/Remove label (free text under Other) is a no.
+const confirmOf = ($: Engine): Confirm => async (question, yes) => {
+  try { return (await $.ui.ask(question, { header: 'a2a', options: [yes, 'Cancel'] })) === yes ? 'yes' : 'no' } catch { return 'none' }
+}
 
 export const INLINE_POLLS_MS = [500, 1000, 2000, 4000]
 // Sleeps count against the hook's 10 s budget; this keeps the last getTask and the reply inside it.
@@ -124,14 +148,6 @@ async function bounded<T>($: Engine, remainingMs: number, signal: AbortSignal, a
   }
 }
 
-async function workerOr(host: Host, alias: unknown): Promise<Worker | string> {
-  const all = await loadWorkers(host)
-  const w = typeof alias === 'string' ? all[alias] : undefined
-  if (w) return w
-  const names = Object.keys(all)
-  return names.length ? `No worker named ${String(alias)}. Known workers: ${names.join(', ')}.` : 'No workers registered. Ask the user to run /a2a add <url>.'
-}
-
 async function paletteOf($: Engine): Promise<Palette> {
   // Another mod's config.list hook may refuse or fail; the dark palette is the fallback.
   try { return palette((await $.config.list()).find(row => row.key === 'theme')?.value) } catch { return palette(undefined) }
@@ -144,7 +160,7 @@ const toggled = (ids: string[] | undefined, id: string) => ((ids ?? []).includes
 const cardWidth = (columns: number | undefined) => Math.max(1, Math.min(100, (columns ?? 80) - 4))
 
 async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<void> {
-  const w = (await loadWorkers(host))[t.worker]
+  const w = own(await loadWorkers(host), t.worker)
   if (!w) { $.ui.toast(`a2a: ${t.worker} was removed.`); return }
   await changeRecent(host, t.taskId, held => held && { ...held, canceling: true })
   const until = Date.now() + PRESS_MS
@@ -163,7 +179,7 @@ async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<voi
 }
 
 async function replyFromPane($: Engine, host: Host, t: RecentTask, text: string): Promise<boolean> {
-  const w = (await loadWorkers(host))[t.worker]
+  const w = own(await loadWorkers(host), t.worker)
   if (!w) { $.ui.toast(`a2a: ${t.worker} was removed.`); return false }
   const until = Date.now() + PRESS_MS
   const never = new AbortController().signal
@@ -232,7 +248,7 @@ export const register: Register = (on, options) => {
     const [workers, calls, pal] = await Promise.all([loadWorkers(host), host.readCalls(), paletteOf($)])
     const now = await nowOf($)
     return useCard($.ui.resolve(e), {
-      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal, now, alias, worker: workers[alias],
+      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal, now, alias, worker: own(workers, alias),
       message: String(input.message ?? ''), isRunning: e.props.isRunning, startedAt: calls.value?.[e.props.tool_use_id]?.startedAt ?? now,
     })
   })
@@ -341,6 +357,12 @@ export const register: Register = (on, options) => {
     if (!all.length) return { result: 'No workers registered. Ask the user to run /a2a add <url>.' }
     return { result: all.map(w => `${w.alias}: ${w.name}. ${w.description}\n  skills: ${w.skills.map(s => `${s.id} (${s.description || s.name})`).join('; ') || 'none listed'}`).join('\n') }
   })
+
+  on('tool.call', { tool: 'mcp__a2a-mod__add_worker' }, async ($, e) =>
+    ({ result: await addWorkerTool(hostOf($, settingTokens, ui), confirmOf($), e as unknown as { url?: unknown; alias?: unknown }) }))
+
+  on('tool.call', { tool: 'mcp__a2a-mod__remove_worker' }, async ($, e) =>
+    ({ result: await removeWorkerTool(hostOf($, settingTokens, ui), confirmOf($), e as unknown as { alias?: unknown }) }))
 
   on('tool.call', { tool: 'mcp__a2a-mod__send' }, async ($, e, next) => {
     const input = e as unknown as { worker?: string; message?: string; taskId?: string; contextId?: string }

@@ -3,7 +3,7 @@ import type { RecentState, TaskState, TrackedTask } from '../types/index.d.ts'
 import { getTask } from './client.ts'
 import { describeOutcome } from './format.ts'
 import { isOpen, isRunning, noteState, readRecent } from './recent.ts'
-import { loadWorkers, noteFailure, targetOf, type Host } from './registry.ts'
+import { loadWorkers, noteFailure, own, targetOf, type Host } from './registry.ts'
 import { STATUS_MS, statusText } from './ui/status.ts'
 import { isLive } from './wire.ts'
 
@@ -57,7 +57,7 @@ export async function resume(host: Host): Promise<void> {
   if (orphans.length) {
     const workers = await loadWorkers(host)
     for (const t of orphans) {
-      if (!workers[t.worker]) { await noteState(host, t.worker, t.taskId, 'removed', 'worker removed'); continue }
+      if (!own(workers, t.worker)) { await noteState(host, t.worker, t.taskId, 'removed', 'worker removed'); continue }
       await track(host, { worker: t.worker, taskId: t.taskId, contextId: t.contextId, state: t.state as TaskState, startedAt: t.startedAt })
       tracked.add(t.taskId)
     }
@@ -75,7 +75,7 @@ type Seen = { state: RecentState; text: string }
 type Result = { task: TrackedTask; live?: TrackedTask; note?: string; failed?: true; seen?: Seen }
 
 async function pollOne(host: Host, t: TrackedTask, workers: Awaited<ReturnType<typeof loadWorkers>>): Promise<Result> {
-  const w = workers[t.worker]
+  const w = own(workers, t.worker)
   if (!w) return { task: t, note: `${t.worker} task ${t.taskId}: the worker was removed, so it is no longer tracked.`, seen: { state: 'removed', text: 'worker removed' } }
   try {
     const out = await timeoutOr(host, getTask(host.fetch, await targetOf(host, w), t.taskId))
