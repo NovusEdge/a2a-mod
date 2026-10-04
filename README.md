@@ -137,7 +137,7 @@ sequenceDiagram
 - The gRPC and REST bindings. JSON-RPC only.
 - OAuth flows. Workers get a bearer token.
 
-Coming: the look. A workers pane, three layouts (`full`, `pane`, `minimal`), and animations are designed and in progress. None of it is built yet; see [the UI design](docs/superpowers/specs/2026-10-04-a2a-mod-ui-design.md).
+Coming: the look. A workers pane, three layouts (`full`, `pane`, `minimal`), and animations are designed and in progress. None of it is built yet; see [the UI page](https://a2a.khimani.dev/ui).
 
 ## Compatibility
 
