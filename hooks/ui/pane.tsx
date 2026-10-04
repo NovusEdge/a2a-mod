@@ -250,23 +250,18 @@ export function paneTree(el: PaneEls, d: PaneData, act: PaneActions): RenderElem
   const live = d.rows.filter(isOpen).length
   const title: Cell[] = clip([{ text: '⇄ ', color: 'inactive' }, ...gradient('a2a', 0, d.pal)], inner)
   const rule = <Text color="inactive">{'─'.repeat(inner)}</Text>
-  const canClear = d.rows.some(t => !isOpen(t)) && cellLen(title) + 1 + CLEAR.length <= inner
-  // With the button, the summary gets what is left after the title, one gap, the button and one gap.
-  const beside = summaryFor(groups.length, live, inner - cellLen(title) - CLEAR.length - 2)
-  const head = canClear
-    ? (
-      <Box>
-        {cellsOf(el, title)}
-        <Text>{' '.repeat(Math.max(0, inner - cellLen(title) - CLEAR.length - (beside ? [...beside].length + 1 : 0)))}</Text>
-        <Button key="clear-done" plain dimColor label={CLEAR} onPress={() => act.clearDone()} />
-        {beside ? <Text color="inactive">{` ${beside}`}</Text> : null}
-      </Box>
-    )
-    : split(el, title, summaryFor(groups.length, live, inner - cellLen(title) - 1), inner)
+  const canClear = d.rows.some(t => !isOpen(t)) && CLEAR.length <= inner
+  const head = split(el, title, summaryFor(groups.length, live, inner - cellLen(title) - 1), inner)
   return (
     <Box flexDirection="column" {...frame}>
       {head}
       {rule}
+      {canClear ? (
+        <Box>
+          <Text>{' '.repeat(inner - CLEAR.length)}</Text>
+          <Button key="clear-done" plain dimColor label={CLEAR} onPress={() => act.clearDone()} />
+        </Box>
+      ) : null}
       {agentTree(el, groups, d, act, inner)}
       <Box flexDirection="column" rowGap={1} marginTop={1}>
         {groups.map(([alias, w]) => workerBox(el, alias, w, d.rows.filter(t => t.worker === alias), d, act, content))}

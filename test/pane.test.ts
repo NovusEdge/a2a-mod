@@ -564,6 +564,18 @@ test('Clear done hides finished tasks from the pane and leaves live ones', async
   expect(await ui.find({ type: 'Button', key: 'open:old2' })).toBeUndefined()
 })
 
+test('Clear done sits alone and right-aligned under the rule, so the title row keeps its summary', async ($, on) => {
+  const ui = await seededPane($, on, [seeded('run'), done('old')])
+  const root = await ui.drawn()
+  const title = boxWith(root, '⇄ ')!
+  expect(textUnder(title)).toMatch(/^⇄ a2a +1 worker · 1 live$/)
+  expect(widthOf(title)).toBe(30)
+  const clear = boxWith(root, 'Clear done')!
+  expect(textUnder(clear)).toMatch(/^ +Clear done$/)
+  expect(widthOf(clear)).toBe(30)
+  expect(title).not.toBe(clear)
+})
+
 test('there is no Clear done while nothing has finished', async ($, on) => {
   const ui = await seededPane($, on, [seeded('run')])
   expect(await ui.find({ type: 'Button', key: 'clear-done' })).toBeUndefined()
