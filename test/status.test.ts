@@ -38,6 +38,7 @@ test('a finished task shows for five seconds when nothing else is live', () => {
   expect(statusText([done('completed')], 20_000, true)).toBe('a2a ✓ fake done 0:20')
   expect(statusText([done('failed')], 21_000, true)).toBe('a2a ✕ fake failed 0:20')
   expect(statusText([done('canceled')], 22_000, true)).toBe('a2a ⊘ fake canceled 0:20')
+  expect(statusText([done('rejected')], 22_000, true)).toBe('a2a ✕ fake failed 0:20')
   expect(statusText([done('completed')], 20_000 + DONE_MS - 1, true)).toBeDefined()
   expect(statusText([done('completed')], 20_000 + DONE_MS, true)).toBeUndefined()
   expect(statusText([row({ state: 'completed', endedAt: 1000 }), row({ taskId: 'x' })], 2000, false)).toBe('a2a ● fake slow 20 build 0:02')

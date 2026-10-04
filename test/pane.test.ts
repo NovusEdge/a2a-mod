@@ -399,6 +399,24 @@ test('the body grows to the pane height, so the footer sits at the bottom', WITH
   expect((root.children ?? []).some(c => (c as Node).type === 'Box' && (c as Node).props?.flexGrow === 1)).toBe(true)
 })
 
+test('the empty pane is cut to the width at 10 columns', async ($, on) => {
+  mock.store(on)
+  engineUi(on)
+  const empty = await mountPane($, 'terminal', 10)
+  for (const tree of await drawnAll(empty)) expect(widthOf(tree)).toBeLessThanOrEqual(10)
+})
+
+test('the header is cut to the width at 10 and 4 columns', WITH_TOKEN, async ($, on) => {
+  mock.store(on, STORE)
+  engineUi(on)
+  const busy = await mountPane($, 'terminal', 10)
+  const header = boxWith(await busy.drawn(), '⇄')
+  expect(widthOf(header)).toBeLessThanOrEqual(8)
+  await busy.unmount()
+  const tiny = await mountPane($, 'terminal', 4)
+  expect(widthOf(boxWith(await tiny.drawn(), '⇄'))).toBeLessThanOrEqual(2)
+})
+
 test('the empty pane is centred and says how to add a worker', async ($, on) => {
   mock.store(on)
   engineUi(on)

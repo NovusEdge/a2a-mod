@@ -3,7 +3,7 @@ import type { PaneView, RecentTask, Worker } from '../../types/index.d.ts'
 import { isRunning, isWaiting } from '../recent.ts'
 import type { Palette } from './color.ts'
 import { cellLen, lines, rowLines, splitLine, stillTick, type RowProps } from './draw.tsx'
-import { fit, gradient, PULSE_MS, sparkline, type Cell } from './fx.ts'
+import { clip, fit, gradient, PULSE_MS, sparkline, type Cell } from './fx.ts'
 import { STATES } from './states.ts'
 
 export const NARROW = 40
@@ -82,8 +82,10 @@ function taskRow(el: PaneEls, t: RecentTask, d: PaneData, act: PaneActions, widt
   )
 }
 
-const split = (el: PaneEls, left: readonly Cell[], right: string, width: number) =>
-  splitLine(el, left, [{ text: fit(right, Math.max(0, width - cellLen(left) - 1)), color: 'inactive' }], width)
+const split = (el: PaneEls, left: readonly Cell[], right: string, width: number) => {
+  const head = clip(left, width)
+  return splitLine(el, head, [{ text: fit(right, Math.max(0, width - cellLen(head) - 1)), color: 'inactive' }], width)
+}
 
 // The longest form that fits beside the title; `n workers · m live` down to `m live`.
 function summaryFor(workers: number, live: number, room: number): string {
@@ -128,9 +130,9 @@ export function paneTree(el: PaneEls, d: PaneData, act: PaneActions): RenderElem
   if (!d.workers.length && !d.rows.length) {
     return (
       <Box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1} {...frame}>
-        <Text color="inactive">Claude ┄┄ ·</Text>
-        <Text>No workers yet</Text>
-        <Text color="inactive">{'/a2a add <url>'}</Text>
+        <Text color="inactive">{fit('Claude ┄┄ ·', inner)}</Text>
+        <Text>{fit('No workers yet', inner)}</Text>
+        <Text color="inactive">{fit('/a2a add <url>', inner)}</Text>
       </Box>
     )
   }

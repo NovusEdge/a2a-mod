@@ -33,6 +33,7 @@ export function statusText(rows: readonly RecentTask[], now: number, anim: boole
   const last = rows.filter(t => ended(t) && now - t.endedAt! < DONE_MS).sort((a, b) => b.endedAt! - a.endedAt!)[0]
   if (!last) return undefined
   const look = STATES[last.state]
-  const what = last.state === 'completed' ? 'done' : look.label
+  // The same words as the result card's badge: a person sees "failed", not the protocol's "rejected".
+  const what = last.state === 'completed' ? 'done' : last.state === 'rejected' ? 'failed' : look.label
   return `a2a ${look.glyph} ${fit(last.worker, 16)} ${what} ${clock(last.endedAt! - last.startedAt)}`
 }

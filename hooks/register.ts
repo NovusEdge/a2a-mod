@@ -138,7 +138,7 @@ async function paletteOf($: Engine): Promise<Palette> {
 const without = (ids: string[], id: string) => ids.filter(x => x !== id)
 
 // The card is indented two columns, so this leaves two spare on the right.
-const cardWidth = (columns: number | undefined) => Math.max(20, Math.min(100, (columns ?? 80) - 4))
+const cardWidth = (columns: number | undefined) => Math.max(1, Math.min(100, (columns ?? 80) - 4))
 
 async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<void> {
   const w = (await loadWorkers(host))[t.worker]
@@ -237,10 +237,17 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'ToolResult', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e, next) => {
     if (ui.layout !== 'full') return next(e)
     const host = hostOf($, settingTokens, ui)
-    const [calls, done] = await Promise.all([host.readCalls(), read($, played)])
+    const [calls, done, list] = await Promise.all([host.readCalls(), read($, played), readRecent(host)])
     const call = calls.value?.[e.props.tool_use_id]
     const playId = call?.taskId ?? e.props.tool_use_id
-    return resultCard($.ui.resolve(e), { surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, state: call?.state, isErrored: e.props.isErrored, text: textOf(e.props.output), playId, played: done.includes(playId), taskId: call?.taskId })
+    // The output is what Claude was told at the time; the task may have moved on since.
+    const now = call?.taskId ? list.find(t => t.taskId === call.taskId) : undefined
+    const moved = now !== undefined && now.state !== call?.state
+    return resultCard($.ui.resolve(e), {
+      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations,
+      state: moved ? now.state : call?.state, isErrored: e.props.isErrored, text: moved ? (now.result ?? '') : textOf(e.props.output),
+      playId, played: done.includes(playId), taskId: call?.taskId,
+    })
   })
 
   // The band is shared: another mod may draw there, and the first tree in the chain wins. So it

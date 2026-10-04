@@ -157,9 +157,11 @@ export function resultCard(el: CardEls, d: ResultCard): RenderElement {
   const tracked = `tracked${d.taskId ? ` · task ${printable(d.taskId).slice(0, 8)}` : ''} · you'll be told when it lands`
   return (
     <Box {...frame(d.width)}>
-      <Text color={b.color}>{b.label}</Text>
+      <Text color={b.color}>{fit(b.label, Math.max(1, d.width - INSET))}</Text>
       <Box marginLeft={2} flexDirection="column">
-        {d.state && isRunning(d.state) ? <Text color="inactive">{tracked}</Text> : resultBody(el, d, 'type')}
+        {d.state && isRunning(d.state)
+          ? wrap(tracked, Math.max(1, d.width - INSET - 2), 4).map(line => <Text color="inactive">{line}</Text>)
+          : resultBody(el, d, 'type')}
       </Box>
     </Box>
   )

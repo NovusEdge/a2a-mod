@@ -79,6 +79,19 @@ export function clock(ms: number): string {
   return s >= 3600 ? `${Math.floor(s / 3600)}:${mm}:${ss}` : `${Math.floor(s / 60)}:${ss}`
 }
 
+/** The first `width` cells of a styled line, keeping each cell's style. */
+export function clip(cells: readonly Cell[], width: number): Cell[] {
+  const out: Cell[] = []
+  let room = Math.max(0, width)
+  for (const c of cells) {
+    if (room <= 0) break
+    const chars = [...c.text]
+    out.push(chars.length <= room ? c : { ...c, text: chars.slice(0, room).join('') })
+    room -= chars.length
+  }
+  return out
+}
+
 /** Cuts to `width` cells with an ellipsis. One cell per code point: CJK and emoji are not measured. */
 export function fit(text: string, width: number): string {
   const chars = [...printable(text).replace(/\s+/g, ' ').trim()]

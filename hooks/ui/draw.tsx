@@ -3,7 +3,7 @@ import type { RecentState } from '../../types/index.d.ts'
 import { printable } from '../format.ts'
 import { isRunning } from '../recent.ts'
 import type { Palette } from './color.ts'
-import { bar, clock, fit, gradient, runs, shimmer, spinner, wire, type Cell, type Direction } from './fx.ts'
+import { bar, clip, clock, fit, gradient, runs, shimmer, spinner, wire, type Cell, type Direction } from './fx.ts'
 import { STATES } from './states.ts'
 
 /** Box and Text: what every surface's table and a client's elements have alike. */
@@ -30,6 +30,8 @@ export function splitLine(el: Els, left: readonly Cell[], right: readonly Cell[]
 
 /** Words onto lines of at most `width` cells, cut at `maxLines` with an ellipsis. Newlines count as spaces. */
 export function wrap(text: string, width: number, maxLines: number): string[] {
+  // A width under one would never consume a long word.
+  width = Math.max(1, width)
   const out: string[] = []
   let line = ''
   for (const word of printable(text).split(/\s+/).filter(Boolean)) {
@@ -75,10 +77,11 @@ export function rowLines(p: RowProps, t: Tick): Cell[][] {
   const labelCells: Cell[] = running && p.anim ? shimmer(label, t.fast, p.pal) : [{ text: label, ...(running ? {} : { color: 'inactive' }) }]
   const pad = ' '.repeat(Math.max(0, room - [...label].length))
   const first: Cell[] = [glyph, { text: ' ' }, ...labelCells, { text: `${pad} ` }, { text: tail, ...(running ? {} : { color: look.color }) }]
-  if (!running) return [first]
+  // Under about 12 cells the glyph, label and time no longer fit; the line is cut rather than spilling.
+  if (!running) return [clip(first, p.width)]
   const pct = p.progress === null ? '' : ` ${String(Math.round(p.progress)).padStart(3)}%`
   const second: Cell[] = [{ text: '  ' }, ...bar(Math.max(1, p.width - 2 - pct.length), p.anim ? t.slow : 0, p.progress ?? undefined), ...(pct ? [{ text: pct, color: 'success' }] : [])]
-  return [first, second]
+  return [clip(first, p.width), clip(second, p.width)]
 }
 
 export type WireProps = { names: string[]; more: number; dir: Direction; anim: boolean; pal: Palette }

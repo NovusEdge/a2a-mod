@@ -1,6 +1,6 @@
 import { test, expect, mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { RenderPropsOf, RenderSurface } from 'claude-code'
-import { boxWith, CALL_IDS, completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, STORE, SURFACES, textUnder, widthOf, WITH_TOKEN, type Node } from './kit.ts'
+import { boxWith, CALL_IDS, completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, promptLog, STORE, SURFACES, textUnder, widthOf, WITH_TOKEN, type Node } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
 import { textOf } from '../hooks/ui/cards.tsx'
 
@@ -102,6 +102,25 @@ for (const surface of SURFACES) {
     for (const model of ['do not poll', 'Carry on', 'You will get a message', SLOW_ID]) expect(drawn).not.toContain(model)
   })
 
+  test(`a tracked result reads completed once the task lands on ${surface}`, SENDS, async ($, on) => {
+    mock.store(on, STORE)
+    const clock = mock.clock(on)
+    const seen = engineUi(on)
+    promptLog(on)
+    let landed = false
+    fakeNet(on, { send: f.v1_send_slow, get: () => (landed ? leaky : f.v1_get_working) })
+    const { id, result } = await sendFor($, clock, seen.callIds, 'slow 60 build')
+    const before = await mountResult($, surface, id, result)
+    expect(await before.find({ type: 'Text', text: '● tracked' })).toBeDefined()
+    await before.unmount()
+    landed = true
+    await clock.advance(5000)
+    const after = await mountResult($, surface, id, result)
+    expect(await after.find({ type: 'Text', text: '✓ completed' })).toBeDefined()
+    expect(await after.find({ type: 'Text', text: /tracked/ })).toBeUndefined()
+    await expectNoToken(after)
+  })
+
   test(`every line of a use card and a result card fits 80 and 120 columns on ${surface}`, SENDS, async ($, on) => {
     mock.store(on, ACME)
     const clock = mock.clock(on)
@@ -118,6 +137,18 @@ for (const surface of SURFACES) {
       for (const tree of await drawnAll(res)) expect(widthOf(tree)).toBeLessThanOrEqual(columns)
       await res.unmount()
     }
+  })
+
+  test(`a use card and a result card fit 10 columns on ${surface}`, SENDS, async ($, on) => {
+    mock.store(on, ACME)
+    const clock = mock.clock(on)
+    const seen = engineUi(on)
+    fakeNet(on, { send: f.v1_send_slow, get: f.v1_get_working })
+    const { id, result } = await sendFor($, clock, seen.callIds, 'slow 60 build')
+    const use = await mountUse($, surface, useProps({ input: { worker: 'fake', message: LONG } }), 10)
+    for (const tree of await drawnAll(use)) expect(widthOf(tree)).toBeLessThanOrEqual(10)
+    const res = await mountResult($, surface, id, result, false, 10)
+    for (const tree of await drawnAll(res)) expect(widthOf(tree)).toBeLessThanOrEqual(10)
   })
 
   test(`the cards are rounded, dim-bordered and indented by two on ${surface}`, SENDS, async ($, on) => {
