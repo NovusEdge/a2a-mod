@@ -1,38 +1,29 @@
 ---
 title: Commands and tools
 description: The /a2a commands you run, and the three tools Claude calls.
-order: 3
+order: 4
 section: Use
 ---
 
+You run one command, `/a2a`, to add, list and remove workers. Claude gets three tools, `workers`, `send` and `task`, and calls them itself when you ask it to use a worker.
+
 ## The /a2a command
 
-You manage workers with `/a2a`. Run it with no arguments to print the usage text.
+Run `/a2a` with no arguments to open the workers pane and print the usage text. With the `minimal` layout there is no pane, so you get the usage text only.
 
 | Command | What it does |
 | --- | --- |
-| `/a2a add <url> [alias]` | Fetch the worker's Agent Card and register it. The alias defaults to a slug of the card name. Run it again to refresh a worker. |
+| `/a2a add <url> [alias] [token flag]` | Fetch the worker's Agent Card and register it. The alias defaults to a slug of the card name. Run it again to refresh a worker. |
 | `/a2a list` | Show registered workers, their skills, and running tasks with their age. |
 | `/a2a remove <alias>` | Forget a worker. |
 
-`add` takes these options:
-
-| Option | What it does |
-| --- | --- |
-| `--token-setting` | Take the token from the `tokens` setting. This is the default. |
-| `--token-cmd "<command>"` | Take the token from a command's output. |
-| `--token-file <path>` | Take the token from a file. |
-| `--trust-endpoint` | Allow the token to go to an endpoint on another origin than the card. |
-
-Give a worker at most one token flag. [Worker tokens](/tokens) explains the three sources and what `--trust-endpoint` is for.
-
 `<url>` can be the worker's base URL or the URL of its Agent Card. If it ends in `.json`, the mod fetches it as the card. Otherwise it fetches `/.well-known/agent-card.json` from that host.
 
-Never type a token into `/a2a`. Slash commands are kept in the transcript, so `/a2a add` rejects `--token`.
+A worker that needs a bearer token takes one token flag on `add`. [Worker tokens](/tokens) lists the flags and explains where each one reads the token from.
 
 ## The tools Claude sees
 
-Claude gets three tools. You do not call them; Claude does, when you ask it to use a worker.
+You do not call these tools. Claude does, when you ask it to use a worker.
 
 | Tool | What it does |
 | --- | --- |
@@ -50,4 +41,4 @@ Claude gets three tools. You do not call them; Claude does, when you ask it to u
 
 ## What a worker sees
 
-A message from `send` goes to the worker as a plain text message. The mod asks the worker to return at once instead of holding the connection, then polls for the result. [How it works](/how-it-works) has the timing.
+A message from `send` goes to the worker as a plain text message. The mod asks the worker to return at once instead of holding the connection, then polls for the result. [How it works](/how-it-works) has the timing, and [Write a worker](/write-a-worker) shows the worker's side.

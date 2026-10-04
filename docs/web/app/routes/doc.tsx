@@ -1,6 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { readMetas } from '../../pages'
+import { Diagram } from '../diagram'
 import { loadPage } from '../markdown.server'
 import { REPO } from '../site'
 import type { Route } from './+types/doc'
@@ -23,16 +24,23 @@ export const meta: Route.MetaFunction = ({ loaderData }) => [
 
 const pathOf = (slug: string) => (slug === 'index' ? '/' : `/${slug}`)
 
+// A heading is current only once the reader has scrolled; at the very top nothing is.
+const TOP = 24
+
 function useActiveHeading(ids: string[]) {
-  const [active, setActive] = useState<string | undefined>(ids[0])
+  const [active, setActive] = useState<string | undefined>(undefined)
   useEffect(() => {
-    setActive(ids[0])
+    setActive(undefined)
     const seen = new Set<string>()
+    const update = () => {
+      if (scrollY < TOP) return setActive(undefined)
+      const first = ids.find(id => seen.has(id))
+      if (first) setActive(first)
+    }
     const io = new IntersectionObserver(
       entries => {
         for (const e of entries) e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id)
-        const first = ids.find(id => seen.has(id))
-        if (first) setActive(first)
+        update()
       },
       { rootMargin: '-80px 0px -70% 0px' },
     )
@@ -40,14 +48,48 @@ function useActiveHeading(ids: string[]) {
       const el = document.getElementById(id)
       if (el) io.observe(el)
     }
-    return () => io.disconnect()
+    addEventListener('scroll', update, { passive: true })
+    return () => { io.disconnect(); removeEventListener('scroll', update) }
   }, [ids.join('|')])
   return active
+}
+
+const SLOT = /<div data-diagram(?:="")?><\/div>/
+
+const COPY_ICON = (
+  <>
+    <svg className="cp" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h8" /></svg>
+    <svg className="ok" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+  </>
+)
+
+function Hero({ tagline }: { tagline: string }) {
+  return (
+    <header className="hero" data-pagefind-ignore>
+      <h1>a2a-mod</h1>
+      <p className="tag">{tagline}</p>
+      <div className="codeblock">
+        <div className="codehead">
+          <span>claude code</span>
+          <button type="button" data-copy aria-label="Copy code" title="Copy code">{COPY_ICON}</button>
+        </div>
+        <pre>{'/plugin marketplace add NovusEdge/a2a-mod\n/plugin install a2a-mod@a2a-mod'}</pre>
+      </div>
+      <p className="req">Needs Claude Code 2.1.287 or later, the first release with mods.</p>
+      <Diagram />
+      <nav className="cards" aria-label="Start here">
+        <Link to="/quick-start"><b>Quick start</b><span>Run the fake worker and watch a result come back.</span></Link>
+        <Link to="/tokens"><b>Connect a real worker</b><span>Give it a bearer token without typing the token.</span></Link>
+        <Link to="/write-a-worker"><b>Write a worker</b><span>A minimal @a2a-js/sdk worker and a checklist.</span></Link>
+      </nav>
+    </header>
+  )
 }
 
 export default function Doc({ loaderData: d }: Route.ComponentProps) {
   const navigate = useNavigate()
   const active = useActiveHeading(d.toc.map(t => t.id))
+  const home = d.slug === 'index'
 
   // The page body is an HTML string, so copy buttons and internal links are handled here.
   const onClick = (e: MouseEvent<HTMLElement>) => {
@@ -56,8 +98,9 @@ export default function Doc({ loaderData: d }: Route.ComponentProps) {
     if (copy) {
       const text = copy.closest('.codeblock')?.querySelector('pre')?.textContent ?? ''
       navigator.clipboard?.writeText(text).catch(() => {})
-      copy.textContent = 'copied'
-      setTimeout(() => { copy.textContent = 'copy' }, 1500)
+      copy.setAttribute('data-copied', '')
+      copy.setAttribute('aria-label', 'Copied')
+      setTimeout(() => { copy.removeAttribute('data-copied'); copy.setAttribute('aria-label', 'Copy code') }, 1500)
       return
     }
     const a = target.closest('a')
@@ -68,21 +111,30 @@ export default function Doc({ loaderData: d }: Route.ComponentProps) {
     }
   }
 
+  const parts = d.html.split(SLOT)
+
   return (
     <>
       <article className="prose-doc min-w-0 max-w-[760px]" data-pagefind-body onClick={onClick}>
-        <p className="label mb-3 !text-(--accent)" data-pagefind-ignore>{d.section} / {d.title}</p>
-        <h1>{d.title}</h1>
-        <p className="lead">{d.description}</p>
-        <div dangerouslySetInnerHTML={{ __html: d.html }} />
+        {home ? <Hero tagline={d.description} /> : <h1>{d.title}</h1>}
+        {parts.map((html, i) => (
+          <div key={i} className="contents">
+            {i > 0 && <Diagram />}
+            <div dangerouslySetInnerHTML={{ __html: html }} />
+          </div>
+        ))}
 
         <div data-pagefind-ignore>
           <p className="mt-12 mb-0 text-sm">
-            <a href={`${REPO}/edit/main/docs/web/content/${d.slug}.md`} className="text-(--muted)">Edit this page</a>
+            <a href={`${REPO}/edit/main/docs/web/content/${d.slug}.md`} className="text-(--muted) hover:text-(--fg)">Edit this page</a>
           </p>
-          <nav aria-label="Previous and next" className="mt-6 flex items-center justify-between gap-4 border-t border-(--line) pt-6 text-sm">
-            {d.prev ? <Link to={pathOf(d.prev.slug)} className="text-(--muted) hover:text-(--fg)">&larr; {d.prev.title}</Link> : <span />}
-            {d.next ? <Link to={pathOf(d.next.slug)} className="text-right text-(--accent)">{d.next.title} &rarr;</Link> : <span />}
+          <nav aria-label="Previous and next" className="pn">
+            {d.prev ? (
+              <Link to={pathOf(d.prev.slug)} className="prev" rel="prev"><span className="dir">Previous</span><span className="ttl">{d.prev.title}</span></Link>
+            ) : <span className="hidden sm:block" />}
+            {d.next ? (
+              <Link to={pathOf(d.next.slug)} className="next" rel="next"><span className="dir">Next</span><span className="ttl">{d.next.title}</span></Link>
+            ) : null}
           </nav>
         </div>
       </article>

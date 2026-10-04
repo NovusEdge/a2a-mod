@@ -74,9 +74,16 @@ export default function Shell() {
       </div>
 
       <footer className="border-t border-(--line)">
-        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-8 text-sm text-(--muted) sm:px-6">
-          <span>MIT license</span>
-          <a href={REPO} className="hover:text-(--fg)">GitHub</a>
+        <div className="foot mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-8 text-sm text-(--muted) sm:px-6">
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span>MIT licence</span>
+            <span className="rounded border border-(--line) px-1.5 py-0.5 font-(family-name:--font-mono) text-xs">A2A 1.0 | 0.3</span>
+          </span>
+          <nav aria-label="Project" className="flex flex-wrap gap-x-5 gap-y-2">
+            <a href={`${REPO}/blob/main/CHANGELOG.md`}>Changelog</a>
+            <Link to="/security">Security</Link>
+            <a href={REPO}>GitHub</a>
+          </nav>
         </div>
       </footer>
     </>

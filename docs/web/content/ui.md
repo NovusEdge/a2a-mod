@@ -1,8 +1,8 @@
 ---
 title: The UI
 description: The status line, the hand-off band, the workers pane and the transcript cards, and what each layout shows.
-order: 9
-section: Reference
+order: 3
+section: Start
 ---
 
 ## What you see

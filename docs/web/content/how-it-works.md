@@ -1,9 +1,13 @@
 ---
 title: How it works
 description: The inline wait, background polling, the wake-up prompt, and what happens when a worker goes quiet.
-order: 5
+order: 6
 section: Use
 ---
+
+Claude waits about 7.5 seconds for an answer. If the worker isn't done, Claude gets a task id and moves on, the mod checks the worker every 5 seconds, and Claude gets a message when the task ends.
+
+{{diagram}}
 
 ## The inline window
 
@@ -17,9 +21,21 @@ The mod also stops polling early when too little of the tool call's time budget 
 
 A task that is still live after the window goes into session state. Claude gets its task id and a note: the worker is working on it, a message will come when it finishes, do not poll. Claude carries on with other work.
 
-A timer polls every tracked task every 5 seconds. A poll that gets no answer within 15 seconds counts as failed. The status line shows the live task and its age, updated once a second while a task runs, and clears when nothing is left.
+A timer polls every tracked task every 5 seconds. A poll that gets no answer within 15 seconds counts as failed. Tracked tasks live in session state, so the timer picks them up again when the session starts.
 
-Tracked tasks live in session state, so the timer picks them up again when the session starts.
+### The status line
+
+While a task is live, the status line shows it. The text depends on what is going on:
+
+| State | Status line |
+| --- | --- |
+| One task running | `a2a ⠋ fake slow 20 build 0:12`: the worker, the task text cut to 32 characters, and the time since it started. |
+| Several running | `a2a ⠋ 2 running · 1 waiting` |
+| A task waiting for your input | `a2a ? fake waiting: Which colour?` |
+| Several waiting, none running | `a2a ? 2 waiting` |
+| A task just ended, nothing else live | `a2a ✓ fake done 0:20` for 5 seconds. A failed task shows `✕ failed`, a canceled one `⊘ canceled`. |
+
+The line updates once a second while anything runs. With animations off, the spinner is a still `●`.
 
 ## Waking Claude
 
