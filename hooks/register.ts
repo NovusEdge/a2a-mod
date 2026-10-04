@@ -137,6 +137,7 @@ async function paletteOf($: Engine): Promise<Palette> {
 
 const without = (ids: string[], id: string) => ids.filter(x => x !== id)
 
+// The card is indented two columns, so this leaves two spare on the right.
 const cardWidth = (columns: number | undefined) => Math.max(20, Math.min(100, (columns ?? 80) - 4))
 
 async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<void> {
@@ -239,7 +240,7 @@ export const register: Register = (on, options) => {
     const [calls, done] = await Promise.all([host.readCalls(), read($, played)])
     const call = calls.value?.[e.props.tool_use_id]
     const playId = call?.taskId ?? e.props.tool_use_id
-    return resultCard($.ui.resolve(e), { surface: e.surface, anim: ui.animations, state: call?.state, isErrored: e.props.isErrored, text: textOf(e.props.output), playId, played: done.includes(playId) })
+    return resultCard($.ui.resolve(e), { surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, state: call?.state, isErrored: e.props.isErrored, text: textOf(e.props.output), playId, played: done.includes(playId), taskId: call?.taskId })
   })
 
   // The band is shared: another mod may draw there, and the first tree in the chain wins. So it
@@ -266,7 +267,7 @@ export const register: Register = (on, options) => {
     if (!notes) return next(e)
     const [list, done, pal] = await Promise.all([readRecent(hostOf($, settingTokens, ui)), read($, played), paletteOf($)])
     return wakeCard($.ui.resolve(e), {
-      surface: e.surface, anim: ui.animations, pal,
+      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal,
       // The state the message reported, not the row's state now: the card is a record of that moment.
       notes: notes.map(n => ({ ...n, state: n.state ?? list.find(t => t.taskId === n.taskId)?.state, played: n.taskId !== undefined && done.includes(n.taskId) })),
     })

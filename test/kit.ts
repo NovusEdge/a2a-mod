@@ -219,7 +219,7 @@ export function widthOf(tree: unknown): number {
     case 'Client': return Number(n.props?.width ?? 0)
     case 'Box': {
       const inner = n.props?.flexDirection === 'column' ? Math.max(0, ...kids.map(widthOf)) : kids.reduce<number>((a, c) => a + widthOf(c), 0)
-      return inner + (n.props?.borderStyle ? 2 : 0) + 2 * Number(n.props?.paddingX ?? 0)
+      return inner + (n.props?.borderStyle ? 2 : 0) + 2 * Number(n.props?.paddingX ?? 0) + Number(n.props?.marginLeft ?? 0)
     }
     default: return 0
   }

@@ -1,5 +1,6 @@
 import type { ClientElements, RenderElement } from 'claude-code'
 import type { RecentState } from '../../types/index.d.ts'
+import { printable } from '../format.ts'
 import { isRunning } from '../recent.ts'
 import type { Palette } from './color.ts'
 import { bar, clock, fit, gradient, runs, shimmer, spinner, wire, type Cell, type Direction } from './fx.ts'
@@ -16,6 +17,31 @@ export function cellsOf(el: Els, cells: readonly Cell[]): RenderElement[] {
 export function lines(el: Els, rows: readonly (readonly Cell[])[]): RenderElement {
   const { Box } = el
   return <Box flexDirection="column">{rows.map(r => <Box>{cellsOf(el, r)}</Box>)}</Box>
+}
+
+export const cellLen = (cells: readonly Cell[]) => cells.reduce((n, c) => n + [...c.text].length, 0)
+
+/** `left` at the start of a line and `right` flush with its end, spaces between, so the line is exactly `width` cells. */
+export function splitLine(el: Els, left: readonly Cell[], right: readonly Cell[], width: number): RenderElement {
+  const { Box } = el
+  const pad: Cell = { text: ' '.repeat(Math.max(0, width - cellLen(left) - cellLen(right))) }
+  return <Box>{cellsOf(el, [...left, pad, ...right].filter(c => c.text))}</Box>
+}
+
+/** Words onto lines of at most `width` cells, cut at `maxLines` with an ellipsis. Newlines count as spaces. */
+export function wrap(text: string, width: number, maxLines: number): string[] {
+  const out: string[] = []
+  let line = ''
+  for (const word of printable(text).split(/\s+/).filter(Boolean)) {
+    for (let w = [...word]; w.length; w = w.slice(width)) {
+      const piece = w.slice(0, width).join('')
+      if (line && [...line].length + 1 + [...piece].length <= width) line += ` ${piece}`
+      else { if (line) out.push(line); line = piece }
+    }
+  }
+  if (line) out.push(line)
+  if (out.length <= maxLines) return out
+  return [...out.slice(0, maxLines - 1), fit([out[maxLines - 1], ...out.slice(maxLines)].join(' '), width)]
 }
 
 export type RowProps = {

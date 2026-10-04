@@ -2,7 +2,7 @@ import type { ElementTable, RenderElement, RenderSurface, UiPressArgument } from
 import type { PaneView, RecentTask, Worker } from '../../types/index.d.ts'
 import { isRunning, isWaiting } from '../recent.ts'
 import type { Palette } from './color.ts'
-import { cellsOf, lines, rowLines, stillTick, type RowProps } from './draw.tsx'
+import { cellLen, lines, rowLines, splitLine, stillTick, type RowProps } from './draw.tsx'
 import { fit, gradient, PULSE_MS, sparkline, type Cell } from './fx.ts'
 import { STATES } from './states.ts'
 
@@ -82,15 +82,8 @@ function taskRow(el: PaneEls, t: RecentTask, d: PaneData, act: PaneActions, widt
   )
 }
 
-const cellLen = (cells: readonly Cell[]) => cells.reduce((n, c) => n + [...c.text].length, 0)
-
-/** `left` at the start of the line and `right` flush with its end, padded with spaces so the line is exactly `width` cells. */
-function split(el: PaneEls, left: readonly Cell[], right: string, width: number): RenderElement {
-  const { Box, Text } = el
-  const tail = fit(right, Math.max(0, width - cellLen(left) - 1))
-  const pad = ' '.repeat(Math.max(0, width - cellLen(left) - [...tail].length))
-  return <Box>{cellsOf(el, left)}<Text>{pad}</Text><Text color="inactive">{tail}</Text></Box>
-}
+const split = (el: PaneEls, left: readonly Cell[], right: string, width: number) =>
+  splitLine(el, left, [{ text: fit(right, Math.max(0, width - cellLen(left) - 1)), color: 'inactive' }], width)
 
 // The longest form that fits beside the title; `n workers · m live` down to `m live`.
 function summaryFor(workers: number, live: number, room: number): string {
