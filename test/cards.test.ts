@@ -2,7 +2,7 @@ import { test, expect, mock, type Engine, type MockClock } from 'claude-code/tes
 import type { RenderPropsOf, RenderSurface } from 'claude-code'
 import { boxWith, CALL_IDS, completedWith, drawnAll, engineUi, expectNoToken, fakeNet, has, promptLog, STORE, SURFACES, textUnder, widthOf, WITH_TOKEN, type Node } from './kit.ts'
 import { fixtures as f } from './fixtures.ts'
-import { textOf } from '../hooks/ui/cards.tsx'
+import { bodyOf, textOf } from '../hooks/ui/cards.tsx'
 
 const SEND = 'mcp__a2a-mod__send'
 const ACME = { workers: { fake: { ...STORE.workers.fake, organization: 'Acme' } } }
@@ -29,6 +29,7 @@ const mountResult = <S extends RenderSurface>($: Engine, surface: S, id: string,
   $.ui.mount({ plugin: 'a2a-mod', surface, component: 'ToolResult', requestId: id, props: { tool_use_id: id, tool: SEND, output, isErrored }, viewport: { columns, rows: 24 } })
 
 const SLOW_ID = f.v1_send_slow.result.task.id
+const ASK_ID = f.v1_send_ask.result.task.id
 const LONG = 'rebuild the documentation site from the markdown sources, check every link, and then report which pages changed since the last release so the changelog can be written'
 
 test('textOf reads a string, a content list or a result object', () => {
@@ -36,6 +37,15 @@ test('textOf reads a string, a content list or a result object', () => {
   expect(textOf([{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }])).toBe('a\nb')
   expect(textOf({ result: 'r' })).toBe('r')
   expect(textOf({ content: [{ type: 'text', text: 'c' }] })).toBe('c')
+})
+
+test('bodyOf drops the summary line Claude reads and keeps what the worker said', () => {
+  expect(bodyOf('fake task t1 is input-required (contextId c1).\n\nWhich colour?')).toBe('Which colour?')
+  expect(bodyOf('fake task t1 is failed (contextId c1).\n\nboom: bad input')).toBe('boom: bad input')
+  expect(bodyOf('fake task t1 is completed.\n\ndone')).toBe('done')
+  expect(bodyOf('fake replied (contextId c1):\n\nhi there')).toBe('hi there')
+  expect(bodyOf('fake task t1 is failed (contextId c1).')).toBe('')
+  expect(bodyOf('connection refused')).toBe('connection refused')
 })
 
 test('vscode and mobile cards draw without a Client', SENDS, async ($, on) => {
@@ -188,6 +198,34 @@ for (const surface of SURFACES) {
     net.state.down = true
     const failed = await sendFor($, clock, seen.callIds)
     expect(await (await mountResult($, surface, failed.id, failed.result)).find({ type: 'Text', text: '✕ failed' })).toBeDefined()
+  })
+
+  test(`a question card shows the question and a dim pointer to the pane, not the summary Claude reads, on ${surface}`, SENDS, async ($, on) => {
+    mock.store(on, STORE)
+    const clock = mock.clock(on)
+    const seen = engineUi(on)
+    fakeNet(on, { send: f.v1_send_ask, get: f.v1_get_input_required })
+    const asked = await sendFor($, clock, seen.callIds, 'ask colour')
+    expect(String(asked.result)).toContain('is input-required')
+    const ui = await mountResult($, surface, asked.id, asked.result)
+    expect(await ui.find({ type: 'Text', text: 'Which colour?' })).toBeDefined()
+    const pointer = await ui.find({ type: 'Text', text: `task ${ASK_ID.slice(0, 8)} · reply in the a2a pane` })
+    expect(pointer?.props.color).toBe('inactive')
+    const drawn = JSON.stringify(await ui.drawn())
+    for (const model of ['is input-required', 'contextId', ASK_ID]) expect(drawn).not.toContain(model)
+  })
+
+  test(`a completed card shows the result alone on ${surface}`, SENDS, async ($, on) => {
+    mock.store(on, STORE)
+    const clock = mock.clock(on)
+    const seen = engineUi(on)
+    fakeNet(on, { send: f.v1_send_echo, get: f.v1_get_completed })
+    const { id, result } = await sendFor($, clock, seen.callIds)
+    expect(String(result)).toContain('is completed')
+    const ui = await mountResult($, surface, id, result)
+    const drawn = JSON.stringify(await ui.drawn())
+    expect(drawn).toContain('echo: hi')
+    for (const model of ['is completed', 'contextId']) expect(drawn).not.toContain(model)
   })
 
   test(`a result and an organization with colour codes draw without them on ${surface}`, { ...SENDS, options: { tokens: 'fake=s3cret', animations: false } }, async ($, on) => {

@@ -33,6 +33,35 @@ test('wakeNotes splits a wake prompt into its tasks and leaves other text alone'
   expect(wakeNotes('hello')).toBeUndefined()
 })
 
+// What Claude Code stores and shows for a plugin's prompt, copied from a real session's screen.
+const FRAMED = [
+  'The a2a-mod plugin sent a message:',
+  'A2A task finished:',
+  '',
+  'fake task a702c561-eb5a-45f2-9b3b-dcad8b8c1036 is completed (contextId 06221134-d8cb-4adf-a2f0-b80c0ff0f4ac).',
+  '',
+  'done: build',
+  '',
+  "This is how Claude Code surfaces a prompt a plugin submits between turns — it starts this turn in the user's place. Address the message above.",
+].join('\n')
+
+test('wakeNotes reads a wake the engine wrapped in its plugin-prompt prefix and suffix', () => {
+  expect(wakeNotes(FRAMED)).toEqual([{ worker: 'fake', taskId: 'a702c561-eb5a-45f2-9b3b-dcad8b8c1036', state: 'completed', body: 'done: build' }])
+  const two = wakeNotes(FRAMED.replace('A2A task finished', 'A2A tasks finished').replace('done: build', 'done: build\n\n---\n\nfake replied:\n\nhi'))
+  expect(two!.map(n => n.body)).toEqual(['done: build', 'hi'])
+})
+
+test('a framed wake draws as a card, not the engine row', async ($, on) => {
+  mock.store(on, STORE)
+  engineUi(on)
+  const ui = await mountWake($, 'terminal', FRAMED)
+  expect(await ui.find({ type: 'Text', text: '⇠ ' })).toBeDefined()
+  expect(await ui.find({ type: 'Client', key: 'type:a702c561-eb5a-45f2-9b3b-dcad8b8c1036' })).toBeDefined()
+  const drawn = JSON.stringify(await ui.drawn())
+  expect(drawn).toContain('done: build')
+  for (const framing of ['This is how Claude Code', 'plugin sent a message', 'contextId']) expect(drawn).not.toContain(framing)
+})
+
 test('a rule inside a worker result does not split the wake into fake cards', () => {
   const notes = wakeNotes('A2A task finished:\n\nfake task t1 is completed.\n\npart one\n\n---\n\npart two')
   expect(notes).toEqual([{ worker: 'fake', taskId: 't1', state: 'completed', body: 'part one\n\n---\n\npart two' }])
@@ -108,12 +137,12 @@ for (const surface of SURFACES) {
     }
   })
 
-  test(`ctrl+o, the person's own prompt and other plugins' messages reach the engine on ${surface}`, WITH_TOKEN, async ($, on) => {
+  test(`an expanded row still draws the card, and the person's own prompt and other plugins' messages reach the engine on ${surface}`, WITH_TOKEN, async ($, on) => {
     mock.store(on, STORE)
     const clock = mock.clock(on)
     engineUi(on)
     const text = await wakeText($, on, clock)
-    expect(await (await mountWake($, surface, text, true)).find({ type: 'Text', text: 'engine UserMessage' })).toBeDefined()
+    expect(await (await mountWake($, surface, text, true)).find({ type: 'Text', text: '⇠ ' })).toBeDefined()
     expect(await (await mountWake($, surface, text, false, { kind: 'composer' })).find({ type: 'Text', text: 'engine UserMessage' })).toBeDefined()
     expect(await (await mountWake($, surface, text, false, { kind: 'plugin', name: 'other' })).find({ type: 'Text', text: 'engine UserMessage' })).toBeDefined()
   })

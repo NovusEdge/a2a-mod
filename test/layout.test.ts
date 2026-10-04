@@ -30,7 +30,7 @@ for (const layout of ['full', 'pane', 'minimal'] as const) {
     await clock.advance(7500)
     const result = (await p).result
     const id = seen.callIds.at(-1)!
-    expect(statuses.at(-1)).toMatch(/^a2a . fake slow 60 build 0:\d\d$/)
+    expect(statuses.at(-1)).toMatch(/^. fake slow 60 build 0:\d\d$/)
     expect(seen.opened).toEqual([])
 
     const engine = (component: string) => ({ type: 'Text', text: `engine ${component}` })
