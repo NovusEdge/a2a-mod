@@ -148,7 +148,7 @@ sequenceDiagram
 
 Change the layout or turn animations off in `/config`. With animations off, every effect draws one still frame. VS Code and the mobile app draw still frames, and the mobile app has no Reply. Built and tested on Claude Code 2.1.288. More on [the UI page](https://a2a.khimani.dev/ui).
 
-When a worker asks a question, Claude is woken as before, and the pane offers Reply too. If you answer from the pane, your next prompt tells Claude what you sent. If both of you answer, the worker gets both messages, and the row shows who answered first.
+When a worker asks a question, Claude is woken as before, and the pane offers Reply too. If you answer from the pane, your next prompt tells Claude what you sent. If both of you answer, the worker gets both messages, and the row shows who answered first. A task waiting for input stays listed in the band, the pane and the status line (`· N waiting`) until someone answers or cancels it.
 
 ## Compatibility
 
