@@ -61,7 +61,7 @@ The first prompt gets an inline reply that lists the worker and its skills. The 
 | `/a2a list` | Show registered workers, their skills, and running tasks with their age. |
 | `/a2a remove <alias>` | Forget a worker. |
 
-Give a worker at most one token flag. `/a2a` with no arguments prints the usage text.
+Give a worker at most one token flag. `/a2a` with no arguments opens the workers pane and prints the usage text.
 
 Claude sees three tools:
 
@@ -137,7 +137,18 @@ sequenceDiagram
 - The gRPC and REST bindings. JSON-RPC only.
 - OAuth flows. Workers get a bearer token.
 
-Coming: the look. A workers pane, three layouts (`full`, `pane`, `minimal`), and animations are designed and in progress. None of it is built yet; see [the UI page](https://a2a.khimani.dev/ui).
+## The look
+
+| Piece | `full` (default) | `pane` | `minimal` |
+| --- | :-: | :-: | :-: |
+| Status line, `a2a: N running · M waiting` | yes | yes | yes |
+| Workers pane: Cancel, Open, Copy, Reply | yes | yes | no |
+| Cards for `send` and for wake messages | yes | no | no |
+| Hand-off band above the prompt | yes | no | no |
+
+Change the layout or turn animations off in `/config`. With animations off, every effect draws one still frame. VS Code and the mobile app draw still frames, and the mobile app has no Reply. Built and tested on Claude Code 2.1.288. More on [the UI page](https://a2a.khimani.dev/ui).
+
+When a worker asks a question, Claude is woken as before, and the pane offers Reply too. If you answer from the pane, your next prompt tells Claude what you sent. If both of you answer, the worker gets both messages, and the row shows who answered first.
 
 ## Compatibility
 
