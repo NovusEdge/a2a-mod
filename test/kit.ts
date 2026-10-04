@@ -1,5 +1,5 @@
 import type { ConfigRow, HttpInit, HttpResponse, ProcessRunResult, RenderElement, RenderPropsOf, StateRead } from 'claude-code'
-import { expect, type Engine, type TestBody } from 'claude-code/testing'
+import { expect, type Engine, type Plugin, type TestBody } from 'claude-code/testing'
 import type { Fetcher } from '../hooks/client.ts'
 import type { Host } from '../hooks/registry.ts'
 import type { CallInfo, RecentTask, TrackedTask } from '../types/index.d.ts'
@@ -214,7 +214,22 @@ export async function expectNoToken(ui: Drawn): Promise<void> {
   for (const tree of await drawnAll(ui)) expect(JSON.stringify(tree)).not.toContain(TOKEN)
 }
 
-export const has = (tree: unknown, type: string): boolean => {
+/**
+ * Loaded outside a2a-mod (prepend tier), so it sees every tool call first and reports its
+ * tool_use_id as a toast that engineUi collects: the test $ never shows the id.
+ */
+export const CALL_IDS: Plugin = {
+  name: 'call-ids',
+  tier: 'prepend',
+  register(on) {
+    on('tool.call', async ($, e, next) => {
+      $.ui.toast(`call-id ${e.tool_use_id}`)
+      return next(e)
+    })
+  },
+}
+
+export const has =(tree: unknown, type: string): boolean => {
   const n = tree as Node
   return !!n && typeof n === 'object' && (n.type === type || (n.children ?? []).some(c => has(c, type)))
 }

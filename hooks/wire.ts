@@ -1,8 +1,11 @@
 import type { Outcome, ProtocolVersion, Skill, TaskOutcome, TaskState, Worker } from '../types/index.d.ts'
+import { printable } from './format.ts'
+
+const ORG_MAX = 60
 
 export type Op = 'send' | 'get' | 'cancel'
 export type OpParams = { text: string; contextId?: string; taskId?: string } | { id: string }
-export type CardInfo = Pick<Worker, 'name' | 'description' | 'cardUrl' | 'endpoint' | 'version' | 'skills' | 'needsAuth'>
+export type CardInfo = Pick<Worker, 'name' | 'description' | 'cardUrl' | 'endpoint' | 'version' | 'skills' | 'needsAuth' | 'organization'>
 
 const METHODS: Record<ProtocolVersion, Record<Op, string>> = {
   '1.0': { send: 'SendMessage', get: 'GetTask', cancel: 'CancelTask' },
@@ -26,7 +29,9 @@ export function parseCard(raw: unknown, cardUrl: string): CardInfo {
   const some = (v: unknown) => (Array.isArray(v) ? v.length > 0 : !!v && typeof v === 'object' && Object.keys(v).length > 0)
   // 1.0 says securityRequirements, 0.3 says security; either one naming a scheme means a token.
   const needsAuth = some(card.securityRequirements) || some(card.security)
-  const base = { name: card.name, description: String(card.description ?? ''), cardUrl, skills, needsAuth }
+  // The organization is drawn in the tool card, where one control character blanks the whole tree.
+  const org = typeof card.provider?.organization === 'string' ? printable(card.provider.organization).slice(0, ORG_MAX) : ''
+  const base = { name: card.name, description: String(card.description ?? ''), cardUrl, skills, needsAuth, ...(org ? { organization: org } : {}) }
   const ifaces: Json[] = Array.isArray(card.supportedInterfaces) ? card.supportedInterfaces : []
   const jsonrpc = (major: string) => ifaces.find(i => i.protocolBinding === 'JSONRPC' && String(i.protocolVersion).startsWith(major))
   const v1 = jsonrpc('1.')

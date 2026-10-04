@@ -23,6 +23,8 @@ export type Worker = {
   needsAuth: boolean
   auth: TokenSource
   trustedOrigin?: string
+  /** The card's `provider.organization`. */
+  organization?: string
   addedAt: number
 }
 

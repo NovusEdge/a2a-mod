@@ -8,6 +8,7 @@ import { changeRecent, isWaiting, noteCall, noteSent, noteState, readRecent, vis
 import { loadWorkers, noteFailure, parseTokens, targetOf, type Host, type SettingTokens } from './registry.ts'
 import { resume, showStatus, track } from './tracker.ts'
 import { palette, type Palette } from './ui/color.ts'
+import { resultCard, textOf, useCard } from './ui/cards.tsx'
 import { hasClient, paneTree, type PaneActions } from './ui/pane.tsx'
 import { parseSettings } from './ui/settings.ts'
 import { isLive } from './wire.ts'
@@ -20,6 +21,8 @@ const CALLS = { plugin: 'a2a-mod', key: 'calls' } as const
 const PANE = { id: 'a2a-workers', title: 'A2A workers' } as const
 const paneView = atom({ plugin: 'a2a-mod', key: 'pane' } as const, { open: [], replying: [] } as PaneView)
 const replies = atom({ plugin: 'a2a-mod', key: 'replies' } as const, [] as SentReply[])
+const played = atom({ plugin: 'a2a-mod', key: 'played' } as const, [] as string[])
+const PLAYED_MAX = 200
 const TOKEN_CMD_TIMEOUT_MS = 10_000
 // A pane button's own deadline for the worker calls it makes.
 const PRESS_MS = 9000
@@ -128,6 +131,8 @@ async function paletteOf($: Engine): Promise<Palette> {
 
 const without = (ids: string[], id: string) => ids.filter(x => x !== id)
 
+const cardWidth = (columns: number | undefined) => Math.max(20, Math.min(100, (columns ?? 80) - 4))
+
 async function cancelFromPane($: Engine, host: Host, t: RecentTask): Promise<void> {
   const w = (await loadWorkers(host))[t.worker]
   if (!w) { $.ui.toast(`a2a: ${t.worker} was removed.`); return }
@@ -202,6 +207,34 @@ export const register: Register = (on, options) => {
     await update($, replies, () => [])
     const told = sent.map(r => `You answered ${r.worker}'s question on task ${r.taskId}: "${r.text}"`)
     return next({ ...e, context: [...(e.context ?? []), ...told] })
+  })
+
+  on('ui.render', { component: 'ToolUse', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e, next) => {
+    if (!hasClient(e.surface)) return next(e)
+    const host = hostOf($, settingTokens)
+    const input = (e.props.input ?? {}) as { worker?: unknown; message?: unknown }
+    const alias = String(input.worker ?? '')
+    const [workers, calls, pal] = await Promise.all([loadWorkers(host), host.readCalls(), paletteOf($)])
+    const now = Date.now()
+    return useCard($.ui.resolve(e), {
+      surface: e.surface, width: cardWidth(e.viewport?.columns), anim: ui.animations, pal, now, alias, worker: workers[alias],
+      message: String(input.message ?? ''), isRunning: e.props.isRunning, startedAt: calls.value?.[e.props.tool_use_id]?.startedAt ?? now,
+    })
+  })
+
+  on('ui.render', { component: 'ToolResult', props: { tool: 'mcp__a2a-mod__send' } }, async ($, e, next) => {
+    if (!hasClient(e.surface)) return next(e)
+    const host = hostOf($, settingTokens)
+    const [calls, done] = await Promise.all([host.readCalls(), read($, played)])
+    const call = calls.value?.[e.props.tool_use_id]
+    const playId = call?.taskId ?? e.props.tool_use_id
+    return resultCard($.ui.resolve(e), { surface: e.surface, anim: ui.animations, state: call?.state, isErrored: e.props.isErrored, text: textOf(e.props.output), playId, played: done.includes(playId) })
+  })
+
+  on('ui.message', async ($, e) => {
+    const id = (e.data as { played?: unknown } | null)?.played
+    if (typeof id === 'string') await update($, played, ids => (ids.includes(id) ? ids : [...ids, id].slice(-PLAYED_MAX)))
+    return {}
   })
 
   on('ui.render', { component: 'Pane', requestId: 'a2a-workers' }, async ($, e, next) => {
