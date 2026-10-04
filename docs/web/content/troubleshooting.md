@@ -37,13 +37,17 @@ Claude sees these in the tool result.
 
 | Message | What to do |
 | --- | --- |
+| `the URL must start with http:// or https://.` | Give Claude a full URL that starts with `http://` or `https://`. |
+| `__proto__ cannot be used as an alias.` | Pick another alias. |
+| `the alias may use letters, digits, ".", "_" and "-", up to 40 characters.` | Pick an alias that fits. It must start with a letter or digit. |
+| `Could not read an Agent Card at that URL.` | Check the URL. Claude is not told why it failed. Run `/a2a add <url>` yourself to see the detailed error. |
+| `<alias> is already registered at another address. Moving a worker to another host is not allowed here; the user must run /a2a add <url> <alias> themselves.` | Claude cannot move a worker to another host, because its token source would follow. Run the `/a2a add` command from the message yourself. |
+| `the tokens setting already holds a token for <alias>, so a new worker cannot take that alias here; the user must run /a2a add <url> <alias> themselves.` | Claude cannot send that token to a new worker. Use another alias, or run the `/a2a add` command from the message yourself. |
+| `the worker's endpoint address is longer than 100 characters, so the dialog cannot show it whole.` | The dialog refuses what it cannot show in full. Use a worker with a shorter endpoint address. |
 | `The user declined.` | You chose Cancel or dismissed the dialog. Nothing changed. Ask Claude again to retry. |
-| `No one to approve this; ask the user to run /a2a add <url> themselves.` | The run has no one to ask, such as `claude -p`. Run `/a2a add <url>` in an interactive session. |
+| `No one to approve this; ask the user to run /a2a add <url> themselves.` | The run has no one to ask, such as `claude -p`. Run `/a2a add <url>` in an interactive session. For a removal the message names `/a2a remove <alias>` instead. |
 | `No worker named <alias>. Known workers: ...` | `remove_worker` got an unknown alias. Use one of the listed aliases. |
-| A refusal to move an existing worker to another host | Claude cannot change a worker's host. Run `/a2a add <url> <alias>` yourself. |
-| A refusal because the alias already has a token in your `tokens` setting | Claude cannot give a new worker that token. Run `/a2a add` yourself. |
-| A refusal because the endpoint origin is over 100 characters | Claude refuses it. Use a shorter URL. |
-| `Could not read an Agent Card at that URL.` | Check the URL. Run `/a2a add <url>` yourself to see the detailed error. |
+| `No workers registered. Ask the user to run /a2a add <url>.` | There is nothing to remove. Run `/a2a add <url>` first. |
 
 If a worker needs a command token, a file token or `--trust-endpoint`, Claude cannot add it. Run `/a2a add` yourself.
 
